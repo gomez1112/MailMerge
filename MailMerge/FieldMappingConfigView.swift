@@ -42,6 +42,8 @@ struct FieldMappingConfigView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         HStack(spacing: 12) {
+                            Text("")
+                                .frame(width: 20)
                             Text("Placeholder")
                                 .font(.caption)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -59,6 +61,9 @@ struct FieldMappingConfigView: View {
                         }
                         ForEach(job.fieldMappings) { mapping in
                             MappingRow(mapping: mapping, availableColumns: job.availableColumns)
+                        }
+                        .onMove { from, to in
+                            job.fieldMappings.move(fromOffsets: from, toOffset: to)
                         }
                     }
                 }
@@ -135,6 +140,9 @@ private struct MappingRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.tertiary)
+                .frame(width: 20)
             Text(mapping.placeholderText)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "arrow.right")

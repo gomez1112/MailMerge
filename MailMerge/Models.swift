@@ -21,6 +21,7 @@ final class MailMergeJob {
     var status: JobStatus
     var lastRunDate: Date?
     var lastRunRecordCount: Int?
+    var category: JobCategory?
 
     init(
         name: String,
@@ -39,7 +40,8 @@ final class MailMergeJob {
         outputFileNamePattern: String = "Letter_{FirstName}_{LastName}",
         status: JobStatus = .draft,
         lastRunDate: Date? = nil,
-        lastRunRecordCount: Int? = nil
+        lastRunRecordCount: Int? = nil,
+        category: JobCategory? = nil
     ) {
         self.name = name
         self.createdAt = createdAt
@@ -58,6 +60,7 @@ final class MailMergeJob {
         self.status = status
         self.lastRunDate = lastRunDate
         self.lastRunRecordCount = lastRunRecordCount
+        self.category = category
     }
 
     var isConfigured: Bool {
@@ -304,5 +307,49 @@ enum FileNameSanitizer {
         let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
         let components = value.components(separatedBy: invalidCharacters)
         return components.joined(separator: "_")
+    }
+}
+
+enum JobCategory: String, Codable, CaseIterable, Identifiable {
+    case uncategorized
+    case personal
+    case work
+    case marketing
+    case events
+    case archived
+    
+    var id: String { rawValue }
+    
+    var label: String {
+        switch self {
+        case .uncategorized: return "Uncategorized"
+        case .personal: return "Personal"
+        case .work: return "Work"
+        case .marketing: return "Marketing"
+        case .events: return "Events"
+        case .archived: return "Archived"
+        }
+    }
+    
+    var systemImageName: String {
+        switch self {
+        case .uncategorized: return "tray"
+        case .personal: return "person"
+        case .work: return "briefcase"
+        case .marketing: return "megaphone"
+        case .events: return "calendar"
+        case .archived: return "archivebox"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .uncategorized: return "gray"
+        case .personal: return "blue"
+        case .work: return "purple"
+        case .marketing: return "orange"
+        case .events: return "green"
+        case .archived: return "brown"
+        }
     }
 }

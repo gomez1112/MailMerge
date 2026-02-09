@@ -14,7 +14,7 @@ struct PreviewConfigView: View {
     @State private var combineIntoSinglePDF = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
             SectionHeader(
                 title: "Preview",
                 subtitle: "Review the generated PDF before running the full merge.",
@@ -27,61 +27,83 @@ struct PreviewConfigView: View {
                 StatCard(systemImageName: "tablecells", value: "\(job.availableColumns.count)", label: "Columns")
             }
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let previewData {
-                        PDFPreviewView(data: previewData)
-                            .frame(height: 360)
-                    } else {
-                        Text("Generate a preview PDF to validate the merge.")
-                            .foregroundStyle(.secondary)
-                            .frame(height: 360)
-                            .frame(maxWidth: .infinity)
+            HSplitView {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text("Preview PDF")
+                                .font(.headline)
+                            Spacer()
+                            Button("Generate Preview") {
+                                generatePreview()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isGenerating)
+                        }
+
+                        if let previewData {
+                            PDFPreviewView(data: previewData)
+                                .frame(minHeight: 420)
+                        } else {
+                            Text("Generate a preview PDF to validate the merge.")
+                                .foregroundStyle(.secondary)
+                                .frame(minHeight: 420)
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        HStack {
+                            Button("Previous") {
+                                currentRecordIndex = max(currentRecordIndex - 1, 0)
+                            }
+                            .disabled(currentRecordIndex == 0)
+                            Text("Record \(currentRecordIndex + 1)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Next") {
+                                currentRecordIndex += 1
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(16)
+                }
+
+                VStack(spacing: 16) {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Merge Settings")
+                                .font(.headline)
+                            Toggle("Combine into single PDF", isOn: $combineIntoSinglePDF)
+                            if mergeProgress.total > 0 {
+                                ProgressView(value: Double(mergeProgress.current), total: Double(mergeProgress.total))
+                                Text("Merging record \(mergeProgress.current) of \(mergeProgress.total)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let mergeResult {
+                                Text("Completed \(mergeResult.recordCount) records in \(mergeResult.duration, format: .number.precision(.fractionLength(1)))s")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(16)
                     }
 
-                    HStack {
-                        Button("Previous") {
-                            currentRecordIndex = max(currentRecordIndex - 1, 0)
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Run Merge")
+                                .font(.headline)
+                            Button("Start Merge") {
+                                startMerge()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!job.isConfigured)
                         }
-                        .disabled(currentRecordIndex == 0)
-                        Text("Record \(currentRecordIndex + 1)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Next") {
-                            currentRecordIndex += 1
-                        }
-                        Spacer()
-                        Button("Generate Preview") {
-                            generatePreview()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isGenerating)
+                        .padding(16)
                     }
+                    Spacer()
                 }
-                .padding(16)
-            }
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Combine into single PDF", isOn: $combineIntoSinglePDF)
-                    if mergeProgress.total > 0 {
-                        ProgressView(value: Double(mergeProgress.current), total: Double(mergeProgress.total))
-                        Text("Merging record \(mergeProgress.current) of \(mergeProgress.total)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let mergeResult {
-                        Text("Completed \(mergeResult.recordCount) records in \(mergeResult.duration, format: .number.precision(.fractionLength(1)))s")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("Start Merge") {
-                        startMerge()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!job.isConfigured)
-                }
-                .padding(16)
+                .frame(minWidth: 240, idealWidth: 260, maxWidth: 280)
             }
             Spacer()
         }

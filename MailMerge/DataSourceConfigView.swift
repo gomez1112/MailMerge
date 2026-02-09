@@ -77,24 +77,16 @@ struct DataSourceConfigView: View {
             }
 
             GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Preview")
-                            .font(.headline)
-                        Spacer()
-                        if isLoadingPreview {
-                            ProgressView()
-                        }
-                    }
-
-                    if previewData.headers.isEmpty {
-                        Text("Load a sheet to preview the first five rows.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Selection")
+                        .font(.headline)
+                    if let selectedSheetName = job.selectedSheetName {
+                        Text("Sheet selected: \(selectedSheetName)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     } else {
-                        DataPreviewTable(headers: previewData.headers, rows: previewData.rows)
-                        Text("Columns: \(previewData.headers.count) · Rows: \(previewData.rows.count)")
-                            .font(.caption)
+                        Text("No sheet selected yet.")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -160,12 +152,16 @@ struct DataSourceConfigView: View {
 
     private func loadSheetNames() {
         guard let bookmarkData = job.dataSourceBookmarkData else { return }
-        Task {
+        Task.detached(priority: .utility) {
             do {
                 let names = try await services.mergeEngine.getSheetNames(bookmarkData: bookmarkData)
-                job.availableSheets = names
+                await MainActor.run {
+                    job.availableSheets = names
+                }
             } catch {
-                onError(error)
+                await MainActor.run {
+                    onError(error)
+                }
             }
         }
     }
@@ -173,19 +169,25 @@ struct DataSourceConfigView: View {
     private func loadPreview(sheetName: String) {
         guard let bookmarkData = job.dataSourceBookmarkData else { return }
         isLoadingPreview = true
-        Task {
+        Task.detached(priority: .utility) {
             do {
                 let preview = try await services.mergeEngine.getSheetPreview(
                     bookmarkData: bookmarkData,
                     sheetName: sheetName,
                     rowCount: 5
                 )
-                previewData = preview
-                job.availableColumns = preview.headers
+                await MainActor.run {
+                    previewData = preview
+                    job.availableColumns = preview.headers
+                }
             } catch {
-                onError(error)
+                await MainActor.run {
+                    onError(error)
+                }
             }
-            isLoadingPreview = false
+            await MainActor.run {
+                isLoadingPreview = false
+            }
         }
     }
 }

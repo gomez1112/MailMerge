@@ -7,17 +7,12 @@ struct SectionHeader: View {
     let systemImageName: String
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: systemImageName)
-                .font(.title2)
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: systemImageName)
+                .font(.headline)
+            Text(subtitle)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -28,14 +23,14 @@ struct FileIconView: View {
     let color: Color
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(color.opacity(0.15))
-            .overlay(
-                Image(systemName: systemImageName)
-                    .font(.title2)
-                    .foregroundStyle(color)
-            )
-            .frame(width: 44, height: 44)
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(color.opacity(0.12))
+            Image(systemName: systemImageName)
+                .font(.title3)
+                .foregroundStyle(color)
+        }
+        .frame(width: 40, height: 40)
     }
 }
 
@@ -49,19 +44,20 @@ struct DropTargetView: View {
         Button(action: action) {
             VStack(spacing: 12) {
                 Image(systemName: systemImageName)
-                    .font(.title)
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
                 Text(title)
-                    .font(.headline)
+                    .font(.body)
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, minHeight: 140)
-            .padding(20)
+            .frame(maxWidth: .infinity, minHeight: 120)
+            .padding()
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6]))
-                    .foregroundStyle(.secondary.opacity(0.5))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(.separator)
             )
         }
         .buttonStyle(.plain)
@@ -130,17 +126,21 @@ struct StatusBadge: View {
     let status: JobStatus
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Image(systemName: status.systemImageName)
+                .font(.caption2)
             Text(status.label)
+                .font(.caption2)
         }
-        .font(.caption)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.secondary.opacity(0.15))
+                .fill(.secondary.opacity(0.12))
         )
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Status: \(status.label)")
     }
 }
 
@@ -150,16 +150,31 @@ struct CircularProgressView: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 8)
+                .stroke(.secondary.opacity(0.15), lineWidth: 10)
             Circle()
                 .trim(from: 0, to: max(0.05, progress))
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(
+                    LinearGradient(
+                        colors: [.accentColor, .accentColor.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                )
                 .rotationEffect(.degrees(-90))
-            Text("\(Int(progress * 100))%")
-                .font(.caption)
+            VStack(spacing: 2) {
+                Text("\(Int(progress * 100))")
+                    .font(.title3.bold())
+                Text("%")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .frame(width: 60, height: 60)
-        .animation(.snappy, value: progress)
+        .frame(width: 72, height: 72)
+        .animation(.smooth(duration: 0.6), value: progress)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Progress: \(Int(progress * 100)) percent complete")
+        .accessibilityValue("\(Int(progress * 100))%")
     }
 }
 
@@ -172,43 +187,49 @@ struct StepButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2))
-                        .frame(width: 28, height: 28)
+                        .fill(isComplete ? .green : (isSelected ? Color.accentColor : Color.secondary.opacity(0.15)))
+                        .frame(width: 32, height: 32)
                     if isComplete {
                         Image(systemName: "checkmark")
-                            .font(.caption.bold())
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                     } else {
                         Text("\(step.rawValue + 1)")
-                            .font(.caption.bold())
-                            .foregroundStyle(isSelected ? .white : .primary)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(isSelected ? .white : .secondary)
                     }
                 }
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(step.title)
-                        .font(.headline)
-                    Text(step.systemImageName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .hidden()
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
                 }
                 Spacer()
                 Image(systemName: step.systemImageName)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
             )
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.clear)
+                        .applyLiquidGlassIfAvailable()
+                }
+            }
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.4)
+        .opacity(isEnabled ? 1 : 0.5)
+        .animation(.smooth(duration: 0.2), value: isSelected)
     }
 }
 
@@ -218,21 +239,17 @@ struct StatCard: View {
     let label: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: systemImageName)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title2.bold())
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(label, systemImage: systemImageName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.title2)
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.secondary.opacity(0.1))
-        )
     }
 }
 
@@ -256,37 +273,46 @@ struct DataPreviewTable: View {
     let rows: [[String]]
 
     var body: some View {
-        ScrollView(.horizontal) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 0) {
-                    ForEach(headers, id: \.self) { header in
-                        Text(header)
+        LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(rows.indices, id: \.self) { rowIndex in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Row \(rowIndex + 1)")
                             .font(.caption.bold())
-                            .frame(minWidth: 120, alignment: .leading)
-                            .padding(8)
-                            .background(Color.secondary.opacity(0.1))
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                }
-                ForEach(rows.indices, id: \.self) { rowIndex in
-                    HStack(spacing: 0) {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
                         ForEach(headers.indices, id: \.self) { columnIndex in
                             let value = rows[rowIndex].indices.contains(columnIndex)
                                 ? rows[rowIndex][columnIndex]
                                 : ""
-                            Text(value)
-                                .frame(minWidth: 120, alignment: .leading)
-                                .padding(8)
-                                .background(rowIndex.isMultiple(of: 2) ? Color.clear : Color.secondary.opacity(0.05))
+                            GridRow {
+                                Text(headers[columnIndex])
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 140, alignment: .leading)
+                                Text(value.isEmpty ? "—" : value)
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
                 }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.secondary.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.2))
+                )
             }
         }
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.secondary.opacity(0.2))
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -303,5 +329,29 @@ struct PDFPreviewView: NSViewRepresentable {
 
     func updateNSView(_ nsView: PDFView, context: Context) {
         nsView.document = PDFDocument(data: data)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func applyLiquidGlassIfAvailable() -> some View {
+        if #available(macOS 15.0, *) {
+            self.glassEffect()
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func applyGlassButtonStyleIfAvailable(isProminent: Bool = false) -> some View {
+        if #available(macOS 15.0, *) {
+            if isProminent {
+                self.buttonStyle(GlassProminentButtonStyle())
+            } else {
+                self.buttonStyle(GlassButtonStyle())
+            }
+        } else {
+            self.buttonStyle(.bordered)
+        }
     }
 }

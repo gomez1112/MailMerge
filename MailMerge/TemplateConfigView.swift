@@ -68,7 +68,7 @@ struct TemplateConfigView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         FlowLayout(spacing: 8) {
-                            ForEach(detectedPlaceholders, id: \.self) { placeholder in
+                            ForEach(Array(detectedPlaceholders.enumerated()), id: \.offset) { _, placeholder in
                                 PlaceholderTag(text: placeholder)
                             }
                         }

@@ -58,7 +58,7 @@ struct OutputConfigView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     FlowLayout(spacing: 8) {
-                        ForEach(availableTokens, id: \.self) { token in
+                        ForEach(Array(availableTokens.enumerated()), id: \.offset) { _, token in
                             PlaceholderTag(text: token)
                         }
                     }

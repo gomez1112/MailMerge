@@ -5,47 +5,62 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MailMergeJob.modifiedAt, order: .reverse) private var jobs: [MailMergeJob]
     @State private var searchText = ""
+    @State private var selectedCategory: JobCategory?
     @State private var selectedJob: MailMergeJob?
-    @State private var showingNewJobSheet = false
 
     private var filteredJobs: [MailMergeJob] {
-        guard !searchText.isEmpty else { return jobs }
-        return jobs.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        guard let selectedCategory else { return [] }
+        let categoryJobs = jobs.filter { ($0.category ?? .uncategorized) == selectedCategory }
+        guard !searchText.isEmpty else { return categoryJobs }
+        return categoryJobs.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    private var jobCountsByCategory: [JobCategory: Int] {
+        Dictionary(grouping: jobs, by: { $0.category ?? .uncategorized })
+            .mapValues { $0.count }
     }
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(
-                jobs: filteredJobs,
-                searchText: $searchText,
-                selectedJob: $selectedJob,
-                onCreate: createJob,
-                onDelete: deleteJobs
-            )
-        } detail: {
-            if let job = selectedJob {
-                JobDetailView(job: job)
-            } else {
-                EmptyStateView(onCreate: createJob)
-            }
-        }
-        .onAppear {
-            if selectedJob == nil {
-                selectedJob = jobs.first
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: createJob) {
-                    Label("New Job", systemImage: "plus")
+        NavigationSplitView(
+            sidebar: {
+                UnifiedSidebarView(
+                    selectedCategory: $selectedCategory,
+                    selectedJob: $selectedJob,
+                    searchText: $searchText,
+                    jobCountsByCategory: jobCountsByCategory,
+                    filteredJobs: filteredJobs,
+                    onCreate: createJob,
+                    onDelete: deleteJobs
+                )
+            },
+            detail: {
+                if let job = selectedJob {
+                    JobDetailView(job: job)
+                } else {
+                    JobEmptyStateView(onCreate: createJob)
                 }
-                .keyboardShortcut("n", modifiers: .command)
+            }
+        )
+        .onAppear(perform: applyCategoryMigrationIfNeeded)
+        .onChange(of: selectedCategory) { _, _ in
+            syncSelection()
+        }
+        .onChange(of: searchText) { _, _ in
+            syncSelection()
+        }
+        .onChange(of: jobs.count) { _, _ in
+            syncSelection()
+        }
+        .onDeleteCommand {
+            if let selectedJob, let index = filteredJobs.firstIndex(where: { $0.id == selectedJob.id }) {
+                deleteJobs(at: IndexSet(integer: index))
             }
         }
     }
 
     private func createJob() {
-        let job = MailMergeJob(name: "New Mail Merge")
+        let category = selectedCategory ?? .uncategorized
+        let job = MailMergeJob(name: "New Mail Merge", category: category)
         modelContext.insert(job)
         selectedJob = job
     }
@@ -55,75 +70,126 @@ struct ContentView: View {
             let job = filteredJobs[index]
             modelContext.delete(job)
         }
-        if selectedJob != nil, jobs.isEmpty {
-            selectedJob = nil
+        syncSelection()
+    }
+
+    private func applyCategoryMigrationIfNeeded() {
+        // Migration: Set default category for existing jobs
+        for job in jobs where job.category == nil {
+            job.category = .uncategorized
         }
+        if selectedCategory == nil {
+            selectedCategory = jobs.first?.category ?? .uncategorized
+        }
+        syncSelection()
+    }
+
+    private func syncSelection() {
+        if selectedCategory == nil {
+            selectedCategory = jobs.first?.category ?? .uncategorized
+        }
+        if let selectedJob, filteredJobs.contains(where: { $0.id == selectedJob.id }) {
+            return
+        }
+        selectedJob = filteredJobs.first
     }
 }
 
-private struct SidebarView: View {
-    let jobs: [MailMergeJob]
-    @Binding var searchText: String
+private struct UnifiedSidebarView: View {
+    @Binding var selectedCategory: JobCategory?
     @Binding var selectedJob: MailMergeJob?
+    @Binding var searchText: String
+    let jobCountsByCategory: [JobCategory: Int]
+    let filteredJobs: [MailMergeJob]
     let onCreate: () -> Void
     let onDelete: (IndexSet) -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("Mail Merge")
-                    .font(.title3.bold())
-                Spacer()
-                Button(action: onCreate) {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-
-            List(selection: $selectedJob) {
-                ForEach(jobs) { job in
-                    HStack(spacing: 12) {
-                        FileIconView(systemImageName: "doc.richtext", color: .accentColor)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(job.name)
-                                .font(.headline)
-                            Text(job.modifiedAt, style: .date)
-                                .font(.caption)
+        List(selection: $selectedJob) {
+            Section {
+                ForEach(JobCategory.allCases) { category in
+                    DisclosureGroup(isExpanded: .constant(selectedCategory == category)) {
+                        let categoryJobs = filteredJobs.filter { ($0.category ?? .uncategorized) == category }
+                        if categoryJobs.isEmpty {
+                            Text("No jobs")
                                 .foregroundStyle(.secondary)
+                                .font(.caption)
+                        } else {
+                            ForEach(categoryJobs) { job in
+                                JobRowView(job: job)
+                                    .tag(job as MailMergeJob?)
+                            }
+                            .onDelete { offsets in
+                                onDelete(offsets)
+                            }
                         }
-                        Spacer()
-                        StatusBadge(status: job.status)
+                    } label: {
+                        Label(category.label, systemImage: category.systemImageName)
+                            .badge(jobCountsByCategory[category, default: 0])
                     }
-                    .tag(job as MailMergeJob?)
+                    .onTapGesture {
+                        selectedCategory = category
+                    }
                 }
-                .onDelete(perform: onDelete)
             }
-            .listStyle(.sidebar)
-            .searchable(text: $searchText, placement: .sidebar)
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Mail Merge")
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Search Jobs")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: onCreate) {
+                    Label("New Job", systemImage: "plus")
+                }
+                .help("Create New Job")
+                .accessibilityLabel("Create New Job")
+                .accessibilityHint("Creates a new mail merge job in the selected category")
+            }
         }
     }
 }
 
-private struct EmptyStateView: View {
+
+
+
+
+private struct JobRowView: View {
+    let job: MailMergeJob
+    
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "doc.text")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(job.name)
+                    .font(.body)
+                Text("Updated \(job.modifiedAt, format: .relative(presentation: .named))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            StatusBadge(status: job.status)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(job.name), \(job.status.label), Updated \(job.modifiedAt, format: .relative(presentation: .named))")
+        .accessibilityHint("Double-tap to view and edit this job")
+    }
+}
+
+private struct JobEmptyStateView: View {
     let onCreate: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 42))
-                .foregroundStyle(.secondary)
-            Text("Create your first mail merge job")
-                .font(.title2.bold())
-            Text("Combine a DOCX template and Excel data to produce personalized PDFs.")
-                .font(.body)
-                .foregroundStyle(.secondary)
+        ContentUnavailableView {
+            Label("No Job Selected", systemImage: "doc.text")
+        } description: {
+            Text("Select a job from the sidebar or create a new one")
+        } actions: {
             Button("New Job", action: onCreate)
-                .buttonStyle(.borderedProminent)
+                .keyboardShortcut("n", modifiers: .command)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
     }
 }
 
