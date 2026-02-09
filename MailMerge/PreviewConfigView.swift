@@ -21,6 +21,21 @@ struct PreviewConfigView: View {
                 systemImageName: "doc.richtext"
             )
 
+            HStack(spacing: 12) {
+                Button("Generate Preview") {
+                    generatePreview()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isGenerating)
+
+                if isGenerating {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                Spacer()
+            }
+
             HStack(spacing: 16) {
                 StatCard(systemImageName: "doc.plaintext", value: "\(job.fieldMappings.count)", label: "Fields")
                 StatCard(systemImageName: "checkmark.circle", value: "\(job.fieldMappings.filter { $0.isMapped }.count)", label: "Mapped")
@@ -34,11 +49,6 @@ struct PreviewConfigView: View {
                             Text("Preview PDF")
                                 .font(.headline)
                             Spacer()
-                            Button("Generate Preview") {
-                                generatePreview()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(isGenerating)
                         }
 
                         if let previewData {

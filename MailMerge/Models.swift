@@ -3,6 +3,7 @@ import SwiftData
 
 @Model
 final class MailMergeJob {
+    var id: UUID
     var name: String
     var createdAt: Date
     var modifiedAt: Date
@@ -21,10 +22,11 @@ final class MailMergeJob {
     var status: JobStatus
     var lastRunDate: Date?
     var lastRunRecordCount: Int?
-    var category: JobCategory?
+    var category: Category?
 
     init(
         name: String,
+        id: UUID = UUID(),
         createdAt: Date = Date(),
         modifiedAt: Date = Date(),
         templateBookmarkData: Data? = nil,
@@ -41,8 +43,9 @@ final class MailMergeJob {
         status: JobStatus = .draft,
         lastRunDate: Date? = nil,
         lastRunRecordCount: Int? = nil,
-        category: JobCategory? = nil
+        category: Category? = nil
     ) {
+        self.id = id
         self.name = name
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
@@ -80,6 +83,32 @@ final class MailMergeJob {
         if !fieldMappings.isEmpty { score += 1 }
         if outputFolderBookmarkData != nil { score += 1 }
         return score / total
+    }
+}
+
+@Model
+final class Category {
+    var id: UUID
+    var name: String
+    var systemImageName: String
+    var colorName: String
+    var sortOrder: Int
+    var isLocked: Bool
+
+    init(
+        name: String,
+        systemImageName: String = "folder",
+        colorName: String = "gray",
+        sortOrder: Int = 0,
+        isLocked: Bool = false,
+        id: UUID = UUID()
+    ) {
+        self.name = name
+        self.systemImageName = systemImageName
+        self.colorName = colorName
+        self.sortOrder = sortOrder
+        self.isLocked = isLocked
+        self.id = id
     }
 }
 
@@ -307,49 +336,5 @@ enum FileNameSanitizer {
         let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
         let components = value.components(separatedBy: invalidCharacters)
         return components.joined(separator: "_")
-    }
-}
-
-enum JobCategory: String, Codable, CaseIterable, Identifiable {
-    case uncategorized
-    case personal
-    case work
-    case marketing
-    case events
-    case archived
-    
-    var id: String { rawValue }
-    
-    var label: String {
-        switch self {
-        case .uncategorized: return "Uncategorized"
-        case .personal: return "Personal"
-        case .work: return "Work"
-        case .marketing: return "Marketing"
-        case .events: return "Events"
-        case .archived: return "Archived"
-        }
-    }
-    
-    var systemImageName: String {
-        switch self {
-        case .uncategorized: return "tray"
-        case .personal: return "person"
-        case .work: return "briefcase"
-        case .marketing: return "megaphone"
-        case .events: return "calendar"
-        case .archived: return "archivebox"
-        }
-    }
-    
-    var color: String {
-        switch self {
-        case .uncategorized: return "gray"
-        case .personal: return "blue"
-        case .work: return "purple"
-        case .marketing: return "orange"
-        case .events: return "green"
-        case .archived: return "brown"
-        }
     }
 }
