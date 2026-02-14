@@ -9,23 +9,10 @@
 /* Begin PBXBuildFile section */
 		CC87A5072F34A82800EBE819 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = CC87A5062F34A82800EBE819 /* CoreXLSX */; };
 		CC87A50F2F34AF4A00EBE819 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = CC87A50E2F34AF4A00EBE819 /* ZIPFoundation */; };
-		CC8E3A742F3EB02D005DDBF7 /* OnboardingKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC8E3A732F3EB02D005DDBF7 /* OnboardingKit */; };
-		CC8E3A792F3EB357005DDBF7 /* FlexStore in Frameworks */ = {isa = PBXBuildFile; productRef = CC8E3A782F3EB357005DDBF7 /* FlexStore */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		CC8E3A8C2F3EC626005DDBF7 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = CC87A4DD2F34A5FE00EBE819 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = CC87A4E42F34A5FE00EBE819;
-			remoteInfo = MailMerge;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		CC87A4E52F34A5FE00EBE819 /* MailMerge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MailMerge.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC8E3A882F3EC626005DDBF7 /* MailMergeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MailMergeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -41,17 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CC8E3A742F3EB02D005DDBF7 /* OnboardingKit in Frameworks */,
-				CC8E3A792F3EB357005DDBF7 /* FlexStore in Frameworks */,
 				CC87A5072F34A82800EBE819 /* CoreXLSX in Frameworks */,
 				CC87A50F2F34AF4A00EBE819 /* ZIPFoundation in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		CC8E3A852F3EC626005DDBF7 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,7 +49,6 @@
 			isa = PBXGroup;
 			children = (
 				CC87A4E52F34A5FE00EBE819 /* MailMerge.app */,
-				CC8E3A882F3EC626005DDBF7 /* MailMergeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -105,32 +82,10 @@
 			packageProductDependencies = (
 				CC87A5062F34A82800EBE819 /* CoreXLSX */,
 				CC87A50E2F34AF4A00EBE819 /* ZIPFoundation */,
-				CC8E3A732F3EB02D005DDBF7 /* OnboardingKit */,
-				CC8E3A782F3EB357005DDBF7 /* FlexStore */,
 			);
 			productName = MailMerge;
 			productReference = CC87A4E52F34A5FE00EBE819 /* MailMerge.app */;
 			productType = "com.apple.product-type.application";
-		};
-		CC8E3A872F3EC626005DDBF7 /* MailMergeTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = CC8E3A8E2F3EC626005DDBF7 /* Build configuration list for PBXNativeTarget "MailMergeTests" */;
-			buildPhases = (
-				CC8E3A842F3EC626005DDBF7 /* Sources */,
-				CC8E3A852F3EC626005DDBF7 /* Frameworks */,
-				CC8E3A862F3EC626005DDBF7 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				CC8E3A8D2F3EC626005DDBF7 /* PBXTargetDependency */,
-			);
-			name = MailMergeTests;
-			packageProductDependencies = (
-			);
-			productName = MailMergeTests;
-			productReference = CC8E3A882F3EC626005DDBF7 /* MailMergeTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -144,10 +99,6 @@
 				TargetAttributes = {
 					CC87A4E42F34A5FE00EBE819 = {
 						CreatedOnToolsVersion = 26.3;
-					};
-					CC8E3A872F3EC626005DDBF7 = {
-						CreatedOnToolsVersion = 26.3;
-						TestTargetID = CC87A4E42F34A5FE00EBE819;
 					};
 				};
 			};
@@ -163,8 +114,6 @@
 			packageReferences = (
 				CC87A5052F34A82800EBE819 /* XCRemoteSwiftPackageReference "CoreXLSX" */,
 				CC87A50C2F34AF0B00EBE819 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
-				CC8E3A722F3EB02D005DDBF7 /* XCRemoteSwiftPackageReference "OnboardingKit" */,
-				CC8E3A772F3EB357005DDBF7 /* XCRemoteSwiftPackageReference "FlexStore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CC87A4E62F34A5FE00EBE819 /* Products */;
@@ -172,20 +121,12 @@
 			projectRoot = "";
 			targets = (
 				CC87A4E42F34A5FE00EBE819 /* MailMerge */,
-				CC8E3A872F3EC626005DDBF7 /* MailMergeTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		CC87A4E32F34A5FE00EBE819 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		CC8E3A862F3EC626005DDBF7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -202,22 +143,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		CC8E3A842F3EC626005DDBF7 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		CC8E3A8D2F3EC626005DDBF7 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = CC87A4E42F34A5FE00EBE819 /* MailMerge */;
-			targetProxy = CC8E3A8C2F3EC626005DDBF7 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		CC87A4EE2F34A5FF00EBE819 /* Debug */ = {
@@ -446,50 +372,6 @@
 			};
 			name = Release;
 		};
-		CC8E3A8F2F3EC626005DDBF7 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 88QL9VPLMY;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.transfinite.MailMergeTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MailMerge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MailMerge";
-			};
-			name = Debug;
-		};
-		CC8E3A902F3EC626005DDBF7 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 88QL9VPLMY;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.transfinite.MailMergeTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MailMerge.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MailMerge";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -507,15 +389,6 @@
 			buildConfigurations = (
 				CC87A4F12F34A5FF00EBE819 /* Debug */,
 				CC87A4F22F34A5FF00EBE819 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		CC8E3A8E2F3EC626005DDBF7 /* Build configuration list for PBXNativeTarget "MailMergeTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				CC8E3A8F2F3EC626005DDBF7 /* Debug */,
-				CC8E3A902F3EC626005DDBF7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -539,22 +412,6 @@
 				minimumVersion = 0.9.20;
 			};
 		};
-		CC8E3A722F3EB02D005DDBF7 /* XCRemoteSwiftPackageReference "OnboardingKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gomez1112/OnboardingKit";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-		CC8E3A772F3EB357005DDBF7 /* XCRemoteSwiftPackageReference "FlexStore" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gomez1112/FlexStore";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -567,16 +424,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CC87A50C2F34AF0B00EBE819 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
-		};
-		CC8E3A732F3EB02D005DDBF7 /* OnboardingKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CC8E3A722F3EB02D005DDBF7 /* XCRemoteSwiftPackageReference "OnboardingKit" */;
-			productName = OnboardingKit;
-		};
-		CC8E3A782F3EB357005DDBF7 /* FlexStore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CC8E3A772F3EB357005DDBF7 /* XCRemoteSwiftPackageReference "FlexStore" */;
-			productName = FlexStore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
