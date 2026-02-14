@@ -1,5 +1,22 @@
 import SwiftUI
 import PDFKit
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
+
+// MARK: - Brand Colors
+
+extension Color {
+    /// The primary brand blue — matches the blue shape in the app icon.
+    static let mergeformBlue = Color(red: 0.23, green: 0.55, blue: 0.96)
+    /// The secondary brand orange/amber — matches the warm shape in the app icon.
+    static let mergeformOrange = Color(red: 0.95, green: 0.58, blue: 0.22)
+    /// Subtle blue-purple background tint — matches the icon background.
+    static let mergeformBackground = Color(red: 0.55, green: 0.62, blue: 0.92).opacity(0.07)
+}
 
 // MARK: - Section Header
 
@@ -7,25 +24,32 @@ struct SectionHeader: View {
     let title: String
     let subtitle: String
     let systemImageName: String
+    var iconColor: Color = .mergeformBlue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [iconColor.opacity(0.18), iconColor.opacity(0.10)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                     Image(systemName: systemImageName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(iconColor)
                 }
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 Text(title)
                     .font(.title2.bold())
             }
             Text(subtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .padding(.leading, 42)
+                .padding(.leading, 48)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -39,13 +63,13 @@ struct ConfigCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding(18)
+            .padding(20)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.background)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
             )
     }
@@ -60,9 +84,15 @@ struct FileIconView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(color.opacity(0.12))
+                .fill(
+                    LinearGradient(
+                        colors: [color.opacity(0.16), color.opacity(0.09)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
             Image(systemName: systemImageName)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(color)
         }
         .frame(width: 40, height: 40)
@@ -81,41 +111,42 @@ struct DropTargetView: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(Color.accentColor.opacity(isHovering ? 0.14 : 0.08))
+                        .fill(Color.mergeformBlue.opacity(isHovering ? 0.16 : 0.09))
                     Image(systemName: systemImageName)
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.mergeformBlue)
                 }
-                .frame(width: 52, height: 52)
-                VStack(spacing: 3) {
+                .frame(width: 56, height: 56)
+                .scaleEffect(isHovering ? 1.06 : 1.0)
+                VStack(spacing: 4) {
                     Text(title)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.primary)
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 130)
+            .frame(maxWidth: .infinity, minHeight: 140)
             .padding()
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isHovering ? Color.accentColor.opacity(0.05) : Color.clear)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isHovering ? Color.mergeformBlue.opacity(0.05) : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
-                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
                     )
-                    .foregroundStyle(isHovering ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.3))
+                    .foregroundStyle(isHovering ? Color.mergeformBlue.opacity(0.7) : Color.secondary.opacity(0.3))
             )
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
+        .animation(.spring(duration: 0.2), value: isHovering)
     }
 }
 
@@ -127,12 +158,12 @@ struct PlaceholderTag: View {
     var body: some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Color.accentColor)
-            .padding(.horizontal, 9)
+            .foregroundStyle(Color.mergeformBlue)
+            .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(
                 Capsule(style: .continuous)
-                    .fill(Color.accentColor.opacity(0.1))
+                    .fill(Color.mergeformBlue.opacity(0.10))
             )
     }
 }
@@ -189,26 +220,26 @@ struct StatusBadge: View {
     private var badgeColor: Color {
         switch status {
         case .draft: return .secondary
-        case .configured: return .blue
-        case .running: return .orange
+        case .configured: return .mergeformBlue
+        case .running: return .mergeformOrange
         case .completed: return .green
         case .failed: return .red
         }
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Circle()
                 .fill(badgeColor)
-                .frame(width: 5, height: 5)
+                .frame(width: 6, height: 6)
             Text(status.label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 10, weight: .semibold))
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 9)
         .padding(.vertical, 4)
         .background(
             Capsule(style: .continuous)
-                .fill(badgeColor.opacity(0.12))
+                .fill(badgeColor.opacity(0.13))
         )
         .foregroundStyle(badgeColor)
         .accessibilityElement(children: .combine)
@@ -229,7 +260,7 @@ struct CircularProgressView: View {
                 .trim(from: 0, to: max(0.02, progress))
                 .stroke(
                     LinearGradient(
-                        colors: [.accentColor, .accentColor.opacity(0.75)],
+                        colors: [.mergeformBlue, .mergeformBlue.opacity(0.7)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -266,7 +297,7 @@ struct StepButton: View {
                 ZStack {
                     Circle()
                         .fill(stepIndicatorFill)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 30, height: 30)
                     if isComplete {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
@@ -283,25 +314,25 @@ struct StepButton: View {
                 Spacer()
                 if isSelected {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.accentColor.opacity(0.6))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.mergeformBlue.opacity(0.7))
                 }
             }
-            .padding(.vertical, 9)
-            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 13)
             .stepButtonBackground(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.38)
-        .animation(.smooth(duration: 0.18), value: isSelected)
-        .animation(.smooth(duration: 0.18), value: isComplete)
+        .animation(.smooth(duration: 0.2), value: isSelected)
+        .animation(.smooth(duration: 0.2), value: isComplete)
     }
 
     private var stepIndicatorFill: Color {
         if isComplete { return .green }
-        if isSelected { return .accentColor }
-        return Color.primary.opacity(0.1)
+        if isSelected { return .mergeformBlue }
+        return Color.primary.opacity(0.10)
     }
 }
 
@@ -309,14 +340,21 @@ private extension View {
     @ViewBuilder
     func stepButtonBackground(isSelected: Bool) -> some View {
         if isSelected {
+#if os(macOS)
             if #available(macOS 26.0, *) {
-                self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
+                self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
             } else {
                 self.background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.1))
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.mergeformBlue.opacity(0.10))
                 )
             }
+#else
+            self.background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.mergeformBlue.opacity(0.10))
+            )
+#endif
         } else {
             self
         }
@@ -329,31 +367,37 @@ struct StatCard: View {
     let systemImageName: String
     let value: String
     let label: String
+    var iconColor: Color = .mergeformBlue
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(iconColor.opacity(0.12))
                 Image(systemName: systemImageName)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iconColor)
+            }
+            .frame(width: 30, height: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .monospacedDigit()
                 Text(label)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            Text(value)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .monospacedDigit()
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(iconColor.opacity(0.05))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(iconColor.opacity(0.12), lineWidth: 1)
         )
     }
 }
@@ -377,19 +421,27 @@ struct MappingProgressView: View {
                 Spacer()
                 Text("\(Int(progress * 100))%")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(progress == 1 ? .green : .accentColor)
+                    .foregroundStyle(progress == 1 ? .green : .mergeformBlue)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.primary.opacity(0.08))
-                        .frame(height: 5)
+                        .frame(height: 6)
                     Capsule()
-                        .fill(progress == 1 ? Color.green : Color.accentColor)
-                        .frame(width: geo.size.width * progress, height: 5)
+                        .fill(
+                            LinearGradient(
+                                colors: progress == 1
+                                    ? [Color.green, Color.green.opacity(0.8)]
+                                    : [Color.mergeformBlue, Color.mergeformBlue.opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * progress, height: 6)
                 }
             }
-            .frame(height: 5)
+            .frame(height: 6)
             .animation(.smooth(duration: 0.4), value: progress)
         }
     }
@@ -406,9 +458,10 @@ struct DataPreviewTable: View {
             ForEach(rows.indices, id: \.self) { rowIndex in
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Row \(rowIndex + 1)")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
+                        .tracking(0.8)
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
                         ForEach(headers.indices, id: \.self) { columnIndex in
                             let value = rows[rowIndex].indices.contains(columnIndex)
@@ -430,7 +483,7 @@ struct DataPreviewTable: View {
                 .padding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.primary.opacity(0.04))
+                        .fill(Color.primary.opacity(0.03))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -444,6 +497,7 @@ struct DataPreviewTable: View {
 
 // MARK: - PDF Preview View
 
+#if canImport(AppKit)
 struct PDFPreviewView: NSViewRepresentable {
     let data: Data
 
@@ -459,21 +513,43 @@ struct PDFPreviewView: NSViewRepresentable {
         nsView.document = PDFDocument(data: data)
     }
 }
+#else
+struct PDFPreviewView: UIViewRepresentable {
+    let data: Data
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        uiView.document = PDFDocument(data: data)
+    }
+}
+#endif
 
 // MARK: - Liquid Glass Extensions
 
 extension View {
     @ViewBuilder
     func applyLiquidGlassIfAvailable() -> some View {
+#if os(macOS)
         if #available(macOS 26.0, *) {
             self.glassEffect()
         } else {
             self
         }
+#else
+        self
+#endif
     }
 
     @ViewBuilder
     func applyGlassButtonStyleIfAvailable(isProminent: Bool = false) -> some View {
+#if os(macOS)
         if #available(macOS 26.0, *) {
             if isProminent {
                 self.buttonStyle(GlassProminentButtonStyle())
@@ -483,8 +559,31 @@ extension View {
         } else {
             self.buttonStyle(.bordered)
         }
+#else
+        self
+#endif
     }
 }
+
+#if canImport(UIKit)
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    init(url: URL) {
+        self.items = [url]
+    }
+
+    init(items: [Any]) {
+        self.items = items
+    }
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif
 
 // MARK: - Inline Label Row
 
@@ -518,13 +617,13 @@ struct CardLabel: View {
             if let systemImage {
                 Image(systemName: systemImage)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.mergeformBlue)
             }
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
-                .tracking(0.4)
+                .tracking(0.8)
         }
     }
 }

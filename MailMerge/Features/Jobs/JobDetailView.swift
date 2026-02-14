@@ -4,6 +4,7 @@ import SwiftData
 struct JobDetailView: View {
     @Environment(\.services) private var services
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedStep: MergeStep = .template
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
@@ -31,12 +32,23 @@ struct JobDetailView: View {
     }
 
     private var mainContent: some View {
-        HStack(spacing: 0) {
-            stepSidebar
-                .frame(minWidth: 210, idealWidth: 240, maxWidth: 280)
-            Divider()
-            stepContent
+        Group {
+            if horizontalSizeClass == .compact {
+                VStack(spacing: 0) {
+                    stepSidebar
+                    Divider()
+                    stepContent
+                }
+            } else {
+                HStack(spacing: 0) {
+                    stepSidebar
+                        .frame(minWidth: 220, idealWidth: 256, maxWidth: 296)
+                    Divider()
+                    stepContent
+                }
+            }
         }
+        .navigationTitle(job.name)
     }
 
     @ViewBuilder
@@ -52,56 +64,63 @@ struct JobDetailView: View {
     private var stepSidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Job name header
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(job.name)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .lineLimit(2)
-                HStack(spacing: 6) {
-                    StatusBadge(status: job.status)
-                    Spacer()
-                    Text("\(Int(job.configurationProgress * 100))%")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+                    .foregroundStyle(.primary)
+                StatusBadge(status: job.status)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 18)
+            .padding(.top, 24)
+            .padding(.bottom, 18)
 
-            // Progress bar
+            // Progress bar (3pt, rounded caps, brand gradient)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.06))
-                        .frame(height: 2)
-                    Rectangle()
+                    Capsule()
+                        .fill(Color.primary.opacity(0.07))
+                        .frame(height: 3)
+                    Capsule()
                         .fill(
                             LinearGradient(
-                                colors: [.accentColor, .accentColor.opacity(0.7)],
+                                colors: job.configurationProgress == 1
+                                    ? [Color.green, Color.green.opacity(0.75)]
+                                    : [Color.mergeformBlue, Color.mergeformOrange.opacity(0.6)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: geo.size.width * job.configurationProgress, height: 2)
-                        .animation(.smooth(duration: 0.4), value: job.configurationProgress)
+                        .frame(width: geo.size.width * job.configurationProgress, height: 3)
+                        .animation(.smooth(duration: 0.5), value: job.configurationProgress)
                 }
             }
-            .frame(height: 2)
-            .padding(.bottom, 16)
+            .frame(height: 3)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 4)
+
+            HStack {
+                Text("\(Int(job.configurationProgress * 100))% complete")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 18)
 
             Divider()
-                .padding(.bottom, 10)
+                .padding(.bottom, 12)
 
             Text("Setup Steps")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.tertiary)
                 .textCase(.uppercase)
-                .tracking(0.5)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 6)
+                .tracking(0.8)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 8)
 
             ScrollView {
-                LazyVStack(spacing: 2) {
+                LazyVStack(spacing: 3) {
                     ForEach(MergeStep.allCases) { step in
                         StepButton(
                             step: step,
@@ -109,7 +128,7 @@ struct JobDetailView: View {
                             isComplete: stepCompletion(step),
                             isEnabled: stepIsEnabled(step)
                         ) {
-                            withAnimation(.smooth(duration: 0.2)) {
+                            withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
                                 selectedStep = step
                             }
                         }
@@ -123,11 +142,11 @@ struct JobDetailView: View {
 
             // Only show the shortcut when not already on the preview step
             if selectedStep != .preview {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Divider()
                     runMergeButton
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 14)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 16)
                 }
             }
         }
@@ -138,10 +157,11 @@ struct JobDetailView: View {
         let label = Label("Run Merge", systemImage: "play.fill")
             .font(.system(size: 13, weight: .semibold))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
+#if os(macOS)
         if #available(macOS 26.0, *) {
             Button {
-                withAnimation(.smooth(duration: 0.2)) { selectedStep = .preview }
+                withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
             } label: {
                 label
             }
@@ -150,14 +170,25 @@ struct JobDetailView: View {
             .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
         } else {
             Button {
-                withAnimation(.smooth(duration: 0.2)) { selectedStep = .preview }
+                withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
             } label: {
                 label
             }
             .buttonStyle(.borderedProminent)
+            .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
             .disabled(!job.isConfigured)
             .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
         }
+#else
+        Button {
+            withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
+        } label: {
+            label
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
+        .disabled(!job.isConfigured)
+#endif
     }
 
     // MARK: - Step Content
@@ -166,34 +197,47 @@ struct JobDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 stepBreadcrumb
-                    .padding(.horizontal, 28)
-                    .padding(.top, 24)
-                    .padding(.bottom, 20)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 28)
+                    .padding(.bottom, 22)
                 stepView
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 32)
+                    .id(selectedStep)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 40)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        )
+                    )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.primary.opacity(0.02))
+        .background(Color.mergeformBackground.opacity(0.5))
     }
 
     private var stepBreadcrumb: some View {
-        HStack(spacing: 6) {
-            Image(systemName: selectedStep.systemImageName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.mergeformBlue.opacity(0.10))
+                Image(systemName: selectedStep.systemImageName)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.mergeformBlue)
+            }
+            .frame(width: 22, height: 22)
             Text("Step \(selectedStep.rawValue + 1) of \(MergeStep.allCases.count)")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
             Image(systemName: "chevron.right")
-                .font(.system(size: 9))
+                .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.quaternary)
             Text(selectedStep.title)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
+        .animation(.smooth(duration: 0.2), value: selectedStep)
     }
 
     @ViewBuilder
@@ -268,6 +312,8 @@ struct JobDetailView: View {
             return "Check that your template and data are valid, then try again."
         case .securityScopeUnavailable:
             return "The app needs permission to access this file. Try selecting it again."
+        case .featureUnavailable:
+            return "Try again on macOS, where DOCX parsing is supported."
         }
     }
 

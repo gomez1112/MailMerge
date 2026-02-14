@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
-import AppKit
 import OnboardingKit
 import FlexStore
+#if canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Notification Names
 
@@ -59,7 +61,9 @@ struct MailMergeApp: App {
                     MainTabView()
                         .modelContainer(container)
                         .environment(\.services, ServiceContainer.shared)
-                        .frame(minWidth: 980, idealWidth: 1160, maxWidth: 1400, minHeight: 680, idealHeight: 760)
+#if os(macOS)
+                        .frame(minWidth: 1060, idealWidth: 1300, maxWidth: 1600, minHeight: 740, idealHeight: 840)
+#endif
                         .attachStoreKit(
                             manager: store,
                             groupID: MailMergeProductIDs.subscriptionGroupID,
@@ -72,13 +76,18 @@ struct MailMergeApp: App {
                 } description: {
                     Text("The app couldn't open its data store. Please restart the app or contact support.")
                 } actions: {
+#if os(macOS)
                     Button("Quit") {
                         NSApplication.shared.terminate(nil)
                     }
+#endif
                 }
+#if os(macOS)
                 .frame(minWidth: 680, idealWidth: 820, minHeight: 420, idealHeight: 520)
+#endif
             }
         }
+#if os(macOS)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
         .commands {
@@ -92,11 +101,14 @@ struct MailMergeApp: App {
             }
             MailMergeCommands()
         }
+#endif
 
+#if os(macOS)
         Settings {
             AppSettingsView()
                 .environment(store)
         }
+#endif
     }
 
     private static func storeURL() -> URL {

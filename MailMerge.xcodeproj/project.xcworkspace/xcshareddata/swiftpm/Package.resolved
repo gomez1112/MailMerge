@@ -11,6 +11,27 @@
       }
     },
     {
+<<<<<<< HEAD
+=======
+      "identity" : "flexstore",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gomez1112/FlexStore",
+      "state" : {
+        "branch" : "main",
+        "revision" : "32964a5c9225b9292f2717811465d5d299f0b5c3"
+      }
+    },
+    {
+      "identity" : "onboardingkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gomez1112/OnboardingKit",
+      "state" : {
+        "branch" : "main",
+        "revision" : "0a89fd731cd130dc67e42fdee564b35f0526debe"
+      }
+    },
+    {
+>>>>>>> Dev
       "identity" : "xmlcoder",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/maxdesiatov/XMLCoder.git",

@@ -156,7 +156,7 @@ struct DataSourceConfigView: View {
                         .padding(.vertical, 7)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+                                .fill(isSelected ? Color.mergeformBlue : Color.primary.opacity(0.06))
                         )
                         .foregroundStyle(isSelected ? .white : .primary)
                     }
@@ -210,11 +210,15 @@ struct DataSourceConfigView: View {
     }
 
     private func storeSpreadsheetURL(_ url: URL) throws {
+        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
         defer { url.stopAccessingSecurityScopedResource() }
         let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        #else
+        let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
+        #endif
         job.dataSourceBookmarkData = bookmarkData
         job.dataSourceFileName = url.lastPathComponent
         job.availableSheets = []

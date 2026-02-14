@@ -71,6 +71,20 @@ struct ContentView: View {
             .navigationTitle("Jobs")
             .searchable(text: $searchText, prompt: "Search Jobs")
             .toolbar {
+#if os(iOS)
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Menu {
+                        Button(action: createJob) {
+                            Label("New Job", systemImage: "plus")
+                        }
+                        Button("Manage Categories") {
+                            showingCategoryManager = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+#else
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: createJob) {
                         Label("New Job", systemImage: "plus")
@@ -79,6 +93,7 @@ struct ContentView: View {
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Manage Categories") { showingCategoryManager = true }
                 }
+#endif
             }
             .navigationDestination(for: UUID.self) { jobID in
                 if let job = jobs.first(where: { $0.id == jobID }) {
@@ -321,19 +336,28 @@ private struct CategoryHeaderView: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
 
+    private var categoryColor: Color {
+        CategoryColorOption.color(for: category.colorName)
+    }
+
     var body: some View {
-        HStack(spacing: 7) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(CategoryColorOption.color(for: category.colorName))
-                .frame(width: 3, height: 14)
-            Image(systemName: category.systemImageName)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(CategoryColorOption.color(for: category.colorName))
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(categoryColor)
+                .frame(width: 3, height: 16)
+            ZStack {
+                Circle()
+                    .fill(categoryColor.opacity(0.12))
+                Image(systemName: category.systemImageName)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(categoryColor)
+            }
+            .frame(width: 18, height: 18)
             Text(category.name)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
-                .tracking(0.3)
+                .tracking(0.8)
         }
         .contextMenu {
             Button("Rename") { onEdit() }
@@ -347,20 +371,44 @@ private struct CategoryHeaderView: View {
 private struct JobRowView: View {
     let job: MailMergeJob
 
+    private var iconColor: Color {
+        switch job.status {
+        case .completed: return .green
+        case .running: return .mergeformOrange
+        case .failed: return .red
+        default: return .mergeformBlue
+        }
+    }
+
+    private var iconName: String {
+        switch job.status {
+        case .completed: return "checkmark.circle.fill"
+        case .running: return "arrow.trianglehead.2.clockwise"
+        case .failed: return "exclamationmark.circle.fill"
+        default: return "doc.text.fill"
+        }
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 13) {
             ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.1))
-                Image(systemName: "doc.text")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [iconColor.opacity(0.15), iconColor.opacity(0.08)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(iconColor)
             }
-            .frame(width: 34, height: 34)
+            .frame(width: 38, height: 38)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(job.name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text("Modified \(job.modifiedAt, format: .relative(presentation: .named))")
                     .font(.system(size: 11))
@@ -369,14 +417,14 @@ private struct JobRowView: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 5) {
                 StatusBadge(status: job.status)
                 if job.configurationProgress > 0 && job.configurationProgress < 1 {
                     ProgressIndicatorDots(progress: job.configurationProgress)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(job.name), \(job.status.label), Modified \(job.modifiedAt, format: .relative(presentation: .named))")
         .accessibilityHint("Double-tap to view and edit this job")
@@ -393,7 +441,7 @@ private struct ProgressIndicatorDots: View {
             ForEach(0..<totalSteps, id: \.self) { index in
                 let filled = Double(index) / Double(totalSteps) < progress
                 Circle()
-                    .fill(filled ? Color.accentColor : Color.primary.opacity(0.12))
+                    .fill(filled ? Color.mergeformBlue : Color.primary.opacity(0.12))
                     .frame(width: 4, height: 4)
             }
         }
@@ -510,11 +558,11 @@ private struct CategoryEditorView: View {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(iconName == option.systemImageName
-                                        ? Color.accentColor.opacity(0.15)
+                                        ? Color.mergeformBlue.opacity(0.15)
                                         : Color.primary.opacity(0.06))
                                 Image(systemName: option.systemImageName)
                                     .foregroundStyle(iconName == option.systemImageName
-                                        ? Color.accentColor
+                                        ? Color.mergeformBlue
                                         : .secondary)
                                     .frame(width: 20, height: 20)
                             }
@@ -523,7 +571,7 @@ private struct CategoryEditorView: View {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .strokeBorder(
                                         iconName == option.systemImageName
-                                            ? Color.accentColor.opacity(0.4)
+                                            ? Color.mergeformBlue.opacity(0.4)
                                             : Color.clear,
                                         lineWidth: 1.5
                                     )
@@ -631,14 +679,14 @@ private struct NewJobCategoryPickerView: View {
                             if isSelected {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(Color.mergeformBlue)
                             }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(isSelected ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.04))
+                                .fill(isSelected ? Color.mergeformBlue.opacity(0.08) : Color.primary.opacity(0.04))
                         )
                     }
                     .buttonStyle(.plain)

@@ -121,6 +121,7 @@ struct OutputConfigView: View {
         do {
             let urls = try result.get()
             guard let url = urls.first else { return }
+            #if os(macOS)
             guard url.startAccessingSecurityScopedResource() else {
                 job.outputFolderBookmarkData = nil
                 job.outputFolderName = nil
@@ -128,6 +129,9 @@ struct OutputConfigView: View {
             }
             defer { url.stopAccessingSecurityScopedResource() }
             let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+            #else
+            let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
+            #endif
             job.outputFolderBookmarkData = bookmarkData
             job.outputFolderName = url.lastPathComponent
             job.modifiedAt = Date()

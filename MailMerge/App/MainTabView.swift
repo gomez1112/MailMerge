@@ -1,91 +1,191 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+#if canImport(AppKit)
 import AppKit
+#endif
 
 struct MainTabView: View {
-    @State private var selection: AppTab = .jobs
+    @State private var selection: SidebarDestination = .jobs
     @State private var pendingJobID: UUID?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        TabView(selection: $selection) {
-            Tab("Jobs", systemImage: "tray.full", value: AppTab.jobs) {
-                ContentView(pendingJobID: $pendingJobID)
-            }
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            sidebarContent
+                .navigationSplitViewColumnWidth(min: 210, ideal: 250, max: 300)
+        } detail: {
+            detailContent
+                .animation(.smooth(duration: 0.25), value: selection)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
 
-            Tab("Templates", systemImage: "doc.richtext", value: AppTab.templates) {
-                TemplateLibraryView { jobID in
-                    pendingJobID = jobID
-                    selection = .jobs
-                }
+    // MARK: - Sidebar
+
+    private var sidebarContent: some View {
+        VStack(spacing: 0) {
+            // Brand header
+            SidebarBrandHeader()
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+
+            Divider()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+            // Navigation rows
+            VStack(spacing: 3) {
+                sidebarRow(
+                    destination: .jobs,
+                    title: "Jobs",
+                    systemImage: "tray.full.fill"
+                )
+                sidebarRow(
+                    destination: .templates,
+                    title: "Templates",
+                    systemImage: "doc.richtext.fill"
+                )
+            }
+            .padding(.horizontal, 10)
+
+            Spacer()
+
+            // Version footer
+            SidebarVersionFooter()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+        }
+        .listStyle(.sidebar)
+        .background(
+            LinearGradient(
+                colors: [Color.mergeformBackground, Color.clear],
+                startPoint: .top,
+                endPoint: .center
+            )
+            .ignoresSafeArea()
+        )
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selection {
+        case .jobs:
+            ContentView(pendingJobID: $pendingJobID)
+        case .templates:
+            TemplateLibraryView { jobID in
+                pendingJobID = jobID
+                selection = .jobs
             }
         }
-        .tabViewStyle(.sidebarAdaptable)
-        .tabViewSidebarHeader {
-            SidebarAppHeader()
+    }
+
+    private func sidebarRow(
+        destination: SidebarDestination,
+        title: String,
+        systemImage: String
+    ) -> some View {
+        let isSelected = selection == destination
+        return Button {
+            withAnimation(.smooth(duration: 0.2)) {
+                selection = destination
+            }
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(isSelected
+                              ? Color.mergeformBlue
+                              : Color.primary.opacity(0.07))
+                    Image(systemName: systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isSelected ? .white : .secondary)
+                }
+                .frame(width: 28, height: 28)
+                Text(title)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                Spacer()
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected
+                          ? Color.mergeformBlue.opacity(0.10)
+                          : Color.clear)
+            )
         }
-        .tabViewSidebarFooter {
-            SidebarAppFooter()
-        }
+        .buttonStyle(.plain)
+        .animation(.smooth(duration: 0.18), value: isSelected)
     }
 }
 
-// MARK: - Sidebar App Header
+// MARK: - Sidebar Brand Header
 
-private struct SidebarAppHeader: View {
+private struct SidebarBrandHeader: View {
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
+            // Two-tone icon matching the app icon
             ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.75)],
+                            colors: [
+                                Color(red: 0.55, green: 0.65, blue: 0.95),
+                                Color(red: 0.40, green: 0.50, blue: 0.88)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                Image(systemName: "doc.on.doc.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
+                // Orange shape (back)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.mergeformOrange.opacity(0.9))
+                    .frame(width: 14, height: 14)
+                    .offset(x: -3, y: 3)
+                    .rotationEffect(.degrees(-8))
+                // Blue shape (front)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.mergeformBlue.opacity(0.95))
+                    .frame(width: 14, height: 14)
+                    .offset(x: 3, y: -3)
+                    .rotationEffect(.degrees(8))
             }
-            .frame(width: 30, height: 30)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Mail Merge")
-                    .font(.system(size: 13, weight: .semibold))
+            .frame(width: 36, height: 36)
+            .shadow(color: Color.mergeformBlue.opacity(0.25), radius: 4, x: 0, y: 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Mergeform")
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.primary)
                 Text("Document automation")
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 6)
     }
 }
 
-// MARK: - Sidebar App Footer
+// MARK: - Sidebar Version Footer
 
-private struct SidebarAppFooter: View {
+private struct SidebarVersionFooter: View {
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "doc.on.doc")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.quaternary)
-            Text("Mail Merge \(appVersion)")
-                .font(.system(size: 11))
-                .foregroundStyle(.quaternary)
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .center)
+        Text("Mergeform \(appVersion)")
+            .font(.system(size: 10))
+            .foregroundStyle(.quaternary)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
 // MARK: - App Tab Enum
 
-private enum AppTab: Hashable {
+private enum SidebarDestination: Hashable {
     case jobs
     case templates
 }
@@ -101,6 +201,9 @@ private struct TemplateLibraryView: View {
 
     @State private var showingImporter = false
     @State private var importErrorMessage: String?
+#if os(iOS)
+    @State private var shareItem: ShareItem?
+#endif
 
     init(onOpenJobs: @escaping (UUID) -> Void) {
         self.onOpenJobs = onOpenJobs
@@ -130,7 +233,7 @@ private struct TemplateLibraryView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header bar
             HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Templates")
                         .font(.title2.bold())
                     Text("\(templateItems.count) template\(templateItems.count == 1 ? "" : "s")")
@@ -144,10 +247,11 @@ private struct TemplateLibraryView: View {
                     Label("Import Template", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Color.mergeformBlue)
                 .controlSize(.regular)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 24)
 
             Divider()
 
@@ -156,19 +260,29 @@ private struct TemplateLibraryView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [
-                        GridItem(.adaptive(minimum: 200, maximum: 260), spacing: 16)
-                    ], spacing: 16) {
+                        GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 18)
+                    ], spacing: 18) {
                         ForEach(templateItems) { item in
-                            TemplateCard(item: item) {
-                                if let jobID = createJob(from: item) {
-                                    onOpenJobs(jobID)
+#if os(macOS)
+                            let revealTitle = "Reveal"
+#else
+                            let revealTitle = "Share"
+#endif
+                            TemplateCard(
+                                item: item,
+                                onUse: {
+                                    if let jobID = createJob(from: item) {
+                                        onOpenJobs(jobID)
+                                    }
+                                },
+                                revealTitle: revealTitle,
+                                onReveal: {
+                                    revealTemplate(item)
                                 }
-                            } onReveal: {
-                                revealTemplate(item)
-                            }
+                            )
                         }
                     }
-                    .padding(24)
+                    .padding(32)
                 }
             }
         }
@@ -190,6 +304,11 @@ private struct TemplateLibraryView: View {
                 Text(importErrorMessage)
             }
         }
+#if os(iOS)
+        .sheet(item: $shareItem) { item in
+            ShareSheet(url: item.url)
+        }
+#endif
     }
 
     private var templateEmptyState: some View {
@@ -216,6 +335,7 @@ private struct TemplateLibraryView: View {
     }
 
     private func storeTemplateURL(_ url: URL) throws -> UUID? {
+        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
@@ -225,6 +345,13 @@ private struct TemplateLibraryView: View {
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
+        #else
+        let bookmarkData = try url.bookmarkData(
+            options: .minimalBookmark,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        #endif
         let category = uncategorizedCategory
         let job = MailMergeJob(name: "New Mail Merge", category: category)
         job.templateBookmarkData = bookmarkData
@@ -247,7 +374,11 @@ private struct TemplateLibraryView: View {
     private func revealTemplate(_ item: TemplateItem) {
         guard let url = try? SecurityScopedAccess.startAccessing(bookmarkData: item.bookmarkData) else { return }
         defer { SecurityScopedAccess.stopAccessing(url) }
+#if os(macOS)
         NSWorkspace.shared.activateFileViewerSelecting([url])
+#else
+        shareItem = ShareItem(url: url)
+#endif
     }
 
     private var uncategorizedCategory: Category? {
@@ -260,6 +391,7 @@ private struct TemplateLibraryView: View {
 private struct TemplateCard: View {
     let item: TemplateItem
     let onUse: () -> Void
+    let revealTitle: String
     let onReveal: () -> Void
 
     @State private var isHovering = false
@@ -268,31 +400,34 @@ private struct TemplateCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // Thumbnail area
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.accentColor.opacity(0.08), Color.accentColor.opacity(0.04)],
+                            colors: [
+                                Color.mergeformBlue.opacity(0.09),
+                                Color.mergeformBlue.opacity(0.04)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "doc.richtext")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(Color.accentColor.opacity(0.6))
+                        .font(.system(size: 34, weight: .light))
+                        .foregroundStyle(Color.mergeformBlue.opacity(0.55))
                     Text("DOCX")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.accentColor.opacity(0.5))
-                        .tracking(1.5)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.mergeformBlue.opacity(0.45))
+                        .tracking(2)
                 }
             }
-            .frame(height: 110)
-            .padding(.bottom, 12)
+            .frame(height: 120)
+            .padding(.bottom, 14)
 
             // File name and meta
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(item.fileName)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(2)
                     .foregroundStyle(.primary)
                 HStack(spacing: 4) {
@@ -308,35 +443,44 @@ private struct TemplateCard: View {
                     }
                 }
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, 14)
 
             // Action buttons
             HStack(spacing: 8) {
                 Button("Use Template") { onUse() }
                     .buttonStyle(.borderedProminent)
+                    .tint(Color.mergeformBlue)
                     .controlSize(.small)
-                Button("Reveal") { onReveal() }
+                Button(revealTitle) { onReveal() }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 Spacer()
             }
         }
-        .padding(14)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.primary.opacity(isHovering ? 0.06 : 0.04))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.primary.opacity(isHovering ? 0.055 : 0.035))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
-                    isHovering ? Color.accentColor.opacity(0.3) : Color.primary.opacity(0.07),
+                    isHovering ? Color.mergeformBlue.opacity(0.35) : Color.primary.opacity(0.07),
                     lineWidth: 1
                 )
         )
+        .scaleEffect(isHovering ? 1.01 : 1.0)
         .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
+        .animation(.spring(duration: 0.2), value: isHovering)
     }
 }
+
+#if os(iOS)
+private struct ShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+#endif
 
 // MARK: - Data Models
 
