@@ -4,11 +4,4 @@
    <FileRef
       location = "self:">
    </FileRef>
-   <Group
-      location = "group:MailMergeTests"
-      name = "MailMergeTests">
-      <FileRef
-         location = "group:MailMergeTests.swift">
-      </FileRef>
-   </Group>
 </Workspace>
