@@ -1,4 +1,5 @@
 import Foundation
+import ZIPFoundation
 import PDFKit
 import SwiftUI
 import CoreText
@@ -75,20 +76,15 @@ actor DOCXParserService {
     }
 
     private func unzipEntry(from url: URL, entryPath: String) -> Data? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-p", url.path(percentEncoded: false), entryPath]
-
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-
         do {
-            try process.run()
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
+            let archive = try Archive(url: url, accessMode: .read)
+            guard let entry = archive[entryPath] else {
                 return nil
             }
+            var data = Data()
+            _ = try archive.extract(entry, consumer: { chunk in
+                data.append(chunk)
+            })
             return data
         } catch {
             return nil
@@ -390,7 +386,7 @@ final class MergeEngine {
         try await excelParser.columnHeaders(bookmarkData: bookmarkData, sheetName: sheetName)
     }
 
-    func generatePreview(job: MailMergeJob) async throws -> Data {
+    func generatePreview(job: MailMergeJob, recordIndex: Int) async throws -> (data: Data, totalRecords: Int) {
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
         }
@@ -403,14 +399,17 @@ final class MergeEngine {
         let headerImageData = await docxParser.headerImageData(bookmarkData: templateBookmarkData)
         let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
         let dataRows = filteredRows(sheet.rows)
-        guard let firstRow = dataRows.first else {
+        let totalRecords = dataRows.count
+        guard totalRecords > 0 else {
             throw MergeError.noRecords
         }
 
+        let safeIndex = max(0, min(recordIndex, totalRecords - 1))
+        let row = dataRows[safeIndex]
         let mappingSnapshots = job.fieldMappings.map { MappingSnapshot(from: $0) }
-        let rowData = buildRowData(headers: sheet.headers, row: firstRow)
+        let rowData = buildRowData(headers: sheet.headers, row: row)
         let attributedString = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappingSnapshots)
-        return try await MainActor.run {
+        let data = try await MainActor.run {
             try pdfGenerator.generatePDF(
                 from: attributedString,
                 pageSize: CGSize(width: 612, height: 792),
@@ -418,6 +417,7 @@ final class MergeEngine {
                 headerImageData: headerImageData
             )
         }
+        return (data, totalRecords)
     }
 
     func performMerge(
@@ -441,77 +441,84 @@ final class MergeEngine {
         job.lastRunDate = Date()
         job.lastRunRecordCount = nil
 
-        let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
-        let headerImageData = await docxParser.headerImageData(bookmarkData: templateBookmarkData)
-        let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
-        let dataRows = filteredRows(sheet.rows)
-        let totalRecords = dataRows.count
-        guard totalRecords > 0 else { throw MergeError.noRecords }
+        do {
+            let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
+            let headerImageData = await docxParser.headerImageData(bookmarkData: templateBookmarkData)
+            let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
+            let dataRows = filteredRows(sheet.rows)
+            let totalRecords = dataRows.count
+            guard totalRecords > 0 else { throw MergeError.noRecords }
 
-        let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
-        let jobName = job.name
-        let filePattern = job.outputFileNamePattern
-        let pageSize = CGSize(width: 612, height: 792)
-        let margins = EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48)
+            let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
+            let jobName = job.name
+            let filePattern = job.outputFileNamePattern
+            let pageSize = CGSize(width: 612, height: 792)
+            let margins = EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48)
 
-        let outputURL: URL?
-        let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
-        defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
-        if singleDocument {
-            var pages: [NSAttributedString] = []
-            for (index, row) in dataRows.enumerated() {
-                let rowData = buildRowData(headers: sheet.headers, row: row)
-                let mergedText = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
-                pages.append(mergedText)
-                await MainActor.run {
-                    progress(index + 1, totalRecords)
+            let outputURL: URL?
+            let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
+            defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
+            if singleDocument {
+                var pages: [NSAttributedString] = []
+                for (index, row) in dataRows.enumerated() {
+                    let rowData = buildRowData(headers: sheet.headers, row: row)
+                    let mergedText = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
+                    pages.append(mergedText)
+                    await MainActor.run {
+                        progress(index + 1, totalRecords)
+                    }
                 }
-            }
-            let data = try await MainActor.run {
-                try pdfGenerator.generatePDF(
-                    pages: pages,
-                    pageSize: pageSize,
-                    margins: margins,
-                    headerImageData: headerImageData
-                )
-            }
-            let filename = sanitizeFileName("Merged_\(jobName)").appending(".pdf")
-            let fileURL = outputFolderURL.appendingPathComponent(filename)
-            try data.write(to: fileURL)
-            outputURL = fileURL
-        } else {
-            var lastOutput: URL? = nil
-            for (index, row) in dataRows.enumerated() {
-                let rowData = buildRowData(headers: sheet.headers, row: row)
-                let attributed = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
                 let data = try await MainActor.run {
                     try pdfGenerator.generatePDF(
-                        from: attributed,
+                        pages: pages,
                         pageSize: pageSize,
                         margins: margins,
                         headerImageData: headerImageData
                     )
                 }
-                let fileName = outputFileName(
-                    pattern: filePattern,
-                    rowIndex: index + 1,
-                    rowData: rowData
-                )
-                let fileURL = outputFolderURL.appendingPathComponent(fileName)
+                let filename = sanitizeFileName("Merged_\(jobName)").appending(".pdf")
+                let fileURL = outputFolderURL.appendingPathComponent(filename)
                 try data.write(to: fileURL)
-                lastOutput = fileURL
-                await MainActor.run {
-                    progress(index + 1, totalRecords)
+                outputURL = fileURL
+            } else {
+                var lastOutput: URL? = nil
+                for (index, row) in dataRows.enumerated() {
+                    let rowData = buildRowData(headers: sheet.headers, row: row)
+                    let attributed = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
+                    let data = try await MainActor.run {
+                        try pdfGenerator.generatePDF(
+                            from: attributed,
+                            pageSize: pageSize,
+                            margins: margins,
+                            headerImageData: headerImageData
+                        )
+                    }
+                    let fileName = outputFileName(
+                        pattern: filePattern,
+                        rowIndex: index + 1,
+                        rowData: rowData
+                    )
+                    let fileURL = outputFolderURL.appendingPathComponent(fileName)
+                    try data.write(to: fileURL)
+                    lastOutput = fileURL
+                    await MainActor.run {
+                        progress(index + 1, totalRecords)
+                    }
                 }
+                outputURL = lastOutput
             }
-            outputURL = lastOutput
-        }
 
-        let duration = Date().timeIntervalSince(start)
-        job.status = .completed
-        job.lastRunDate = Date()
-        job.lastRunRecordCount = totalRecords
-        return MergeResult(outputURL: outputURL, recordCount: totalRecords, duration: duration)
+            let duration = Date().timeIntervalSince(start)
+            job.status = .completed
+            job.lastRunDate = Date()
+            job.lastRunRecordCount = totalRecords
+            return MergeResult(outputURL: outputURL, recordCount: totalRecords, duration: duration)
+        } catch {
+            job.status = .failed
+            job.lastRunDate = Date()
+            job.lastRunRecordCount = nil
+            throw error
+        }
     }
 
     private func applyMappings(

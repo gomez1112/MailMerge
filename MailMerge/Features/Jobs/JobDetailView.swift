@@ -20,7 +20,7 @@ struct JobDetailView: View {
             .onChange(of: job.outputFolderBookmarkData) { _, _ in updateStatus() }
             .onChange(of: job.fieldMappings.count) { _, _ in updateStatus() }
     }
-    
+
     private var contentWithMetadata: some View {
         mainContent
             .alert("Something Went Wrong", isPresented: $showingErrorAlert) {
@@ -28,55 +28,80 @@ struct JobDetailView: View {
             } message: {
                 Text(errorMessage)
             }
-            .toolbar {
-                primaryActionToolbar
-            }
     }
-    
+
     private var mainContent: some View {
-        HSplitView {
+        HStack(spacing: 0) {
             stepSidebar
-                .layoutPriority(1)
+                .frame(minWidth: 210, idealWidth: 240, maxWidth: 280)
+            Divider()
             stepContent
-                .layoutPriority(0)
         }
     }
-    
+
     @ViewBuilder
     private var errorAlertButtons: some View {
         Button("OK", role: .cancel) { }
         if shouldShowRecoveryButton() {
-            Button("Try Again") {
-                retryLastAction()
-            }
-        }
-    }
-    
-    @ToolbarContentBuilder
-    private var primaryActionToolbar: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                selectedStep = .preview
-            } label: {
-                Label("Run Merge", systemImage: "play.fill")
-            }
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(!job.isConfigured)
-            .help("Generate all merged PDF documents")
-            .accessibilityLabel("Run Merge")
-            .accessibilityHint("Generate all merged PDF documents from the template and data")
+            Button("Try Again") { retryLastAction() }
         }
     }
 
+    // MARK: - Step Sidebar
+
     private var stepSidebar: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Job name header
+            VStack(alignment: .leading, spacing: 4) {
+                Text(job.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    StatusBadge(status: job.status)
+                    Spacer()
+                    Text("\(Int(job.configurationProgress * 100))%")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(height: 2)
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.accentColor, .accentColor.opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * job.configurationProgress, height: 2)
+                        .animation(.smooth(duration: 0.4), value: job.configurationProgress)
+                }
+            }
+            .frame(height: 2)
+            .padding(.bottom, 16)
+
+            Divider()
+                .padding(.bottom, 10)
+
             Text("Setup Steps")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-                .padding(.leading, 12)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
+
             ScrollView {
-                LazyVStack(spacing: 8) {
+                LazyVStack(spacing: 2) {
                     ForEach(MergeStep.allCases) { step in
                         StepButton(
                             step: step,
@@ -84,33 +109,91 @@ struct JobDetailView: View {
                             isComplete: stepCompletion(step),
                             isEnabled: stepIsEnabled(step)
                         ) {
-                            selectedStep = step
+                            withAnimation(.smooth(duration: 0.2)) {
+                                selectedStep = step
+                            }
                         }
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 16)
             }
-        }
-        .frame(minWidth: 260, idealWidth: 280, maxWidth: 320)
-        .background(.thinMaterial)
-    }
 
-    private var stepContent: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    stepHeader
-                        .padding(.horizontal, 4)
-                        .padding(.bottom, 12)
-                    stepView
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding()
+            Spacer(minLength: 0)
+
+            // Only show the shortcut when not already on the preview step
+            if selectedStep != .preview {
+                VStack(spacing: 8) {
+                    Divider()
+                    runMergeButton
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 14)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var runMergeButton: some View {
+        let label = Label("Run Merge", systemImage: "play.fill")
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        if #available(macOS 26.0, *) {
+            Button {
+                withAnimation(.smooth(duration: 0.2)) { selectedStep = .preview }
+            } label: {
+                label
+            }
+            .buttonStyle(GlassProminentButtonStyle())
+            .disabled(!job.isConfigured)
+            .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
+        } else {
+            Button {
+                withAnimation(.smooth(duration: 0.2)) { selectedStep = .preview }
+            } label: {
+                label
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!job.isConfigured)
+            .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
+        }
+    }
+
+    // MARK: - Step Content
+
+    private var stepContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                stepBreadcrumb
+                    .padding(.horizontal, 28)
+                    .padding(.top, 24)
+                    .padding(.bottom, 20)
+                stepView
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 32)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.background)
+        .background(Color.primary.opacity(0.02))
+    }
+
+    private var stepBreadcrumb: some View {
+        HStack(spacing: 6) {
+            Image(systemName: selectedStep.systemImageName)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text("Step \(selectedStep.rawValue + 1) of \(MergeStep.allCases.count)")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9))
+                .foregroundStyle(.quaternary)
+            Text(selectedStep.title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -129,17 +212,7 @@ struct JobDetailView: View {
         }
     }
 
-    private var stepHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Step \(selectedStep.rawValue + 1)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Text(selectedStep.title)
-                .font(.title3.bold())
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    // MARK: - Step Logic
 
     private func stepCompletion(_ step: MergeStep) -> Bool {
         switch step {
@@ -152,33 +225,19 @@ struct JobDetailView: View {
     }
 
     private func stepIsEnabled(_ step: MergeStep) -> Bool {
+        // Once a job is fully configured, all steps are freely accessible for review and editing.
+        if job.isConfigured { return true }
+        // For partially configured jobs, enforce sequential unlocking.
         switch step {
-        case .template:
-            return true
-        case .dataSource:
-            return job.templateBookmarkData != nil
-        case .fieldMapping:
-            return job.dataSourceBookmarkData != nil
-        case .output:
-            return !job.fieldMappings.isEmpty
-        case .preview:
-            return job.outputFolderBookmarkData != nil
+        case .template: return true
+        case .dataSource: return job.templateBookmarkData != nil
+        case .fieldMapping: return job.dataSourceBookmarkData != nil
+        case .output: return !job.fieldMappings.isEmpty
+        case .preview: return job.outputFolderBookmarkData != nil
         }
     }
 
-    private func selectPreviousStep() {
-        guard let index = MergeStep.allCases.firstIndex(of: selectedStep),
-              index > 0 else { return }
-        selectedStep = MergeStep.allCases[index - 1]
-    }
-
-    private func selectNextStep() {
-        guard let index = MergeStep.allCases.firstIndex(of: selectedStep),
-              index < MergeStep.allCases.count - 1 else { return }
-        let nextStep = MergeStep.allCases[index + 1]
-        guard stepIsEnabled(nextStep) else { return }
-        selectedStep = nextStep
-    }
+    // MARK: - Error Handling
 
     private func handleError(_ error: Error) {
         if let mergeError = error as? MergeError {
@@ -188,7 +247,7 @@ struct JobDetailView: View {
         }
         showingErrorAlert = true
     }
-    
+
     private func recoveryInfo(for error: MergeError) -> String {
         switch error {
         case .invalidTemplate:
@@ -211,33 +270,17 @@ struct JobDetailView: View {
             return "The app needs permission to access this file. Try selecting it again."
         }
     }
-    
+
     private func shouldShowRecoveryButton() -> Bool {
         errorMessage.contains("Try selecting") || errorMessage.contains("try again")
     }
-    
-    private func retryLastAction() {
-        switch selectedStep {
-        case .template:
-            break
-        case .dataSource:
-            break
-        case .fieldMapping:
-            break
-        case .output:
-            break
-        case .preview:
-            break
-        }
-    }
 
+    private func retryLastAction() { }
 
     private func updateStatus() {
         guard !isRestoring else { return }
         if job.isConfigured {
-            if job.status == .draft {
-                job.status = .configured
-            }
+            if job.status == .draft { job.status = .configured }
         } else if job.status != .running {
             job.status = .draft
         }
@@ -252,11 +295,7 @@ struct JobDetailView: View {
     private func cancelChanges() {
         if isBrandNewJob {
             modelContext.delete(job)
-            do {
-                try modelContext.save()
-            } catch {
-                handleError(error)
-            }
+            try? modelContext.save()
             return
         }
         guard let snapshot = initialSnapshot else { return }
@@ -275,6 +314,8 @@ struct JobDetailView: View {
         return hasNoConfiguration && isUntouched
     }
 }
+
+// MARK: - Snapshot Support
 
 private struct JobSnapshot {
     let name: String
@@ -333,13 +374,10 @@ private struct JobSnapshot {
         job.lastRunRecordCount = lastRunRecordCount
         job.category = category
 
-        for mapping in job.fieldMappings {
-            modelContext.delete(mapping)
-        }
+        for mapping in job.fieldMappings { modelContext.delete(mapping) }
         job.fieldMappings.removeAll()
         for mapping in fieldMappings {
-            let restored = mapping.makeMapping(job: job)
-            job.fieldMappings.append(restored)
+            job.fieldMappings.append(mapping.makeMapping(job: job))
         }
     }
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "8ee4c951704715f5fbabdbc24658fe1b1612612ae1a45ae7e185a9611e9ce965",
+  "originHash" : "175256976223f1f8b19fe186e534e13d918350afbc3a3b22b8678db650e99ed5",
   "pins" : [
     {
       "identity" : "corexlsx",
@@ -8,6 +8,24 @@
       "state" : {
         "revision" : "1391f3832ea2eeee5186ea8abb81ea49ed0609cc",
         "version" : "0.14.2"
+      }
+    },
+    {
+      "identity" : "flexstore",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gomez1112/FlexStore",
+      "state" : {
+        "branch" : "main",
+        "revision" : "32964a5c9225b9292f2717811465d5d299f0b5c3"
+      }
+    },
+    {
+      "identity" : "onboardingkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gomez1112/OnboardingKit",
+      "state" : {
+        "branch" : "main",
+        "revision" : "d979e323155d75bdd4250c3212f3d6adfb18a529"
       }
     },
     {

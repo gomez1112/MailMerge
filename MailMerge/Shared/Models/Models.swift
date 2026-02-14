@@ -14,6 +14,7 @@ final class MailMergeJob {
     var selectedSheetName: String?
     var availableSheets: [String]
     @Transient var availableColumns: [String] = []
+    @Transient var combineIntoSinglePDF: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \FieldMapping.job)
     var fieldMappings: [FieldMapping]
     var outputFolderBookmarkData: Data?
@@ -36,6 +37,7 @@ final class MailMergeJob {
         selectedSheetName: String? = nil,
         availableSheets: [String] = [],
         availableColumns: [String] = [],
+        combineIntoSinglePDF: Bool = false,
         fieldMappings: [FieldMapping] = [],
         outputFolderBookmarkData: Data? = nil,
         outputFolderName: String? = nil,
@@ -56,6 +58,7 @@ final class MailMergeJob {
         self.selectedSheetName = selectedSheetName
         self.availableSheets = availableSheets
         self.availableColumns = availableColumns
+        self.combineIntoSinglePDF = combineIntoSinglePDF
         self.fieldMappings = fieldMappings
         self.outputFolderBookmarkData = outputFolderBookmarkData
         self.outputFolderName = outputFolderName
@@ -337,4 +340,190 @@ enum FileNameSanitizer {
         let components = value.components(separatedBy: invalidCharacters)
         return components.joined(separator: "_")
     }
+}
+
+enum MailMergeSchemaV1: VersionedSchema {
+    static let versionIdentifier: Schema.Version = .init(1, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        [MailMergeJobV1.self, FieldMappingV1.self]
+    }
+}
+
+@Model
+final class MailMergeJobV1 {
+    var name: String
+    var createdAt: Date
+    var modifiedAt: Date
+    var templateBookmarkData: Data?
+    var templateFileName: String?
+    var dataSourceBookmarkData: Data?
+    var dataSourceFileName: String?
+    var selectedSheetName: String?
+    var availableSheets: [String]
+    @Relationship(deleteRule: .cascade, inverse: \FieldMappingV1.job)
+    var fieldMappings: [FieldMappingV1]
+    var outputFolderBookmarkData: Data?
+    var outputFolderName: String?
+    var outputFileNamePattern: String
+    var status: JobStatus
+    var lastRunDate: Date?
+    var lastRunRecordCount: Int?
+    var category: JobCategoryV1?
+
+    init(
+        name: String,
+        createdAt: Date = Date(),
+        modifiedAt: Date = Date(),
+        templateBookmarkData: Data? = nil,
+        templateFileName: String? = nil,
+        dataSourceBookmarkData: Data? = nil,
+        dataSourceFileName: String? = nil,
+        selectedSheetName: String? = nil,
+        availableSheets: [String] = [],
+        fieldMappings: [FieldMappingV1] = [],
+        outputFolderBookmarkData: Data? = nil,
+        outputFolderName: String? = nil,
+        outputFileNamePattern: String = "Letter_{FirstName}_{LastName}",
+        status: JobStatus = .draft,
+        lastRunDate: Date? = nil,
+        lastRunRecordCount: Int? = nil,
+        category: JobCategoryV1? = nil
+    ) {
+        self.name = name
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
+        self.templateBookmarkData = templateBookmarkData
+        self.templateFileName = templateFileName
+        self.dataSourceBookmarkData = dataSourceBookmarkData
+        self.dataSourceFileName = dataSourceFileName
+        self.selectedSheetName = selectedSheetName
+        self.availableSheets = availableSheets
+        self.fieldMappings = fieldMappings
+        self.outputFolderBookmarkData = outputFolderBookmarkData
+        self.outputFolderName = outputFolderName
+        self.outputFileNamePattern = outputFileNamePattern
+        self.status = status
+        self.lastRunDate = lastRunDate
+        self.lastRunRecordCount = lastRunRecordCount
+        self.category = category
+    }
+}
+
+@Model
+final class FieldMappingV1 {
+    var placeholderText: String
+    var columnName: String?
+    var isAutoMatched: Bool
+    var matchConfidence: Double
+    var transformation: FieldTransformation
+    var formatString: String?
+    var job: MailMergeJobV1?
+
+    init(
+        placeholderText: String,
+        columnName: String? = nil,
+        isAutoMatched: Bool = false,
+        matchConfidence: Double = 0,
+        transformation: FieldTransformation = .none,
+        formatString: String? = nil,
+        job: MailMergeJobV1? = nil
+    ) {
+        self.placeholderText = placeholderText
+        self.columnName = columnName
+        self.isAutoMatched = isAutoMatched
+        self.matchConfidence = matchConfidence
+        self.transformation = transformation
+        self.formatString = formatString
+        self.job = job
+    }
+}
+
+enum JobCategoryV1: String, Codable, CaseIterable {
+    case uncategorized
+    case personal
+    case work
+    case marketing
+    case events
+    case archived
+}
+
+enum MailMergeSchemaV2: VersionedSchema {
+    static let versionIdentifier: Schema.Version = .init(2, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        [MailMergeJob.self, FieldMapping.self, Category.self]
+    }
+}
+
+enum MailMergeMigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [MailMergeSchemaV1.self, MailMergeSchemaV2.self]
+    }
+
+    static var stages: [MigrationStage] {
+        [migrateV1toV2]
+    }
+
+    static let migrateV1toV2 = MigrationStage.custom(
+        fromVersion: MailMergeSchemaV1.self,
+        toVersion: MailMergeSchemaV2.self,
+        willMigrate: { context in
+            let jobs = try context.fetch(FetchDescriptor<MailMergeJobV1>())
+            let defaults = [
+                Category(name: "Uncategorized", systemImageName: "tray", colorName: "gray", sortOrder: 0, isLocked: true),
+                Category(name: "Personal", systemImageName: "person", colorName: "blue", sortOrder: 1, isLocked: false),
+                Category(name: "Work", systemImageName: "briefcase", colorName: "purple", sortOrder: 2, isLocked: false),
+                Category(name: "Marketing", systemImageName: "megaphone", colorName: "orange", sortOrder: 3, isLocked: false),
+                Category(name: "Events", systemImageName: "calendar", colorName: "green", sortOrder: 4, isLocked: false),
+                Category(name: "Archived", systemImageName: "archivebox", colorName: "brown", sortOrder: 5, isLocked: false)
+            ]
+            for category in defaults {
+                context.insert(category)
+            }
+            let categoryMap: [JobCategoryV1?: Category] = [
+                .uncategorized: defaults[0],
+                .personal: defaults[1],
+                .work: defaults[2],
+                .marketing: defaults[3],
+                .events: defaults[4],
+                .archived: defaults[5],
+                nil: defaults[0]
+            ]
+
+            for job in jobs {
+                let newJob = MailMergeJob(
+                    name: job.name,
+                    createdAt: job.createdAt,
+                    modifiedAt: job.modifiedAt,
+                    templateBookmarkData: job.templateBookmarkData,
+                    templateFileName: job.templateFileName,
+                    dataSourceBookmarkData: job.dataSourceBookmarkData,
+                    dataSourceFileName: job.dataSourceFileName,
+                    selectedSheetName: job.selectedSheetName,
+                    availableSheets: job.availableSheets,
+                    fieldMappings: [],
+                    outputFolderBookmarkData: job.outputFolderBookmarkData,
+                    outputFolderName: job.outputFolderName,
+                    outputFileNamePattern: job.outputFileNamePattern,
+                    status: job.status,
+                    lastRunDate: job.lastRunDate,
+                    lastRunRecordCount: job.lastRunRecordCount,
+                    category: categoryMap[job.category]
+                )
+                for mapping in job.fieldMappings {
+                    let newMapping = FieldMapping(
+                        placeholderText: mapping.placeholderText,
+                        columnName: mapping.columnName,
+                        isAutoMatched: mapping.isAutoMatched,
+                        matchConfidence: mapping.matchConfidence,
+                        transformation: mapping.transformation,
+                        formatString: mapping.formatString,
+                        job: newJob
+                    )
+                    newJob.fieldMappings.append(newMapping)
+                }
+                context.insert(newJob)
+            }
+        },
+        didMigrate: { _ in }
+    )
 }

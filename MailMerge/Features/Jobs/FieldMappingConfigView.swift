@@ -16,62 +16,90 @@ struct FieldMappingConfigView: View {
                 systemImageName: "arrow.left.arrow.right"
             )
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 16) {
+            // Progress card
+            ConfigCard {
+                VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        Text("Mapping progress")
-                            .font(.headline)
+                        CardLabel(title: "Mapping Progress", systemImage: "chart.bar.fill")
                         Spacer()
                         Button {
                             autoMatch()
                         } label: {
-                            Label("Auto-Match", systemImage: "sparkles")
+                            if isAutoMatching {
+                                HStack(spacing: 6) {
+                                    ProgressView().controlSize(.mini)
+                                    Text("Matching…")
+                                }
+                            } else {
+                                Label("Auto-Match", systemImage: "sparkles")
+                            }
                         }
-                        .disabled(job.availableSheets.isEmpty || isAutoMatching)
+                        .font(.system(size: 12))
+                        .disabled(job.availableColumns.isEmpty || isAutoMatching)
                     }
                     MappingProgressView(mappedCount: mappedCount, totalCount: job.fieldMappings.count)
                 }
-                .padding(16)
             }
 
-            GroupBox {
+            // Mappings table card
+            ConfigCard {
                 VStack(alignment: .leading, spacing: 12) {
+                    CardLabel(title: "Field Assignments", systemImage: "arrow.left.arrow.right")
+
                     if job.fieldMappings.isEmpty {
-                        Text("No placeholders detected yet. Scan the template to start mapping.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        HStack(spacing: 12) {
-                            Text("")
-                                .frame(width: 20)
-                            Text("Placeholder")
-                                .font(.caption)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("")
-                                .frame(width: 24)
-                            Text("Column")
-                                .font(.caption)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("Transform")
-                                .font(.caption)
-                                .frame(width: 140, alignment: .leading)
-                            Text("Status")
-                                .font(.caption)
-                                .frame(width: 80, alignment: .leading)
+                        HStack(spacing: 8) {
+                            Image(systemName: "wand.and.stars")
+                                .foregroundStyle(.tertiary)
+                            Text("No placeholders detected yet. Scan the template in Step 1 to start mapping.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                         }
+                        .padding(.vertical, 8)
+                    } else {
+                        mappingTableHeader
+                        Divider()
                         ForEach(job.fieldMappings) { mapping in
                             MappingRow(mapping: mapping, availableColumns: job.availableColumns)
+                            if mapping.id != job.fieldMappings.last?.id {
+                                Divider()
+                                    .padding(.leading, 32)
+                            }
                         }
                         .onMove { from, to in
                             job.fieldMappings.move(fromOffsets: from, toOffset: to)
                         }
                     }
                 }
-                .padding(16)
             }
+
             Spacer()
         }
     }
+
+    private var mappingTableHeader: some View {
+        HStack(spacing: 0) {
+            Text("")
+                .frame(width: 28)
+            Text("Placeholder")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "arrow.right")
+                .font(.system(size: 9))
+                .foregroundStyle(.quaternary)
+                .frame(width: 28)
+            Text("Column")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Transform")
+                .frame(width: 130, alignment: .leading)
+            Text("Status")
+                .frame(width: 70, alignment: .center)
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.tertiary)
+        .textCase(.uppercase)
+        .tracking(0.3)
+    }
+
+    // MARK: - Auto-match
 
     private func autoMatch() {
         isAutoMatching = true
@@ -110,23 +138,14 @@ struct FieldMappingConfigView: View {
         let lhsChars = Array(lhs)
         let rhsChars = Array(rhs)
         var matrix = Array(repeating: Array(repeating: 0, count: rhsChars.count + 1), count: lhsChars.count + 1)
-
-        for i in 0...lhsChars.count {
-            matrix[i][0] = i
-        }
-        for j in 0...rhsChars.count {
-            matrix[0][j] = j
-        }
-
+        for i in 0...lhsChars.count { matrix[i][0] = i }
+        for j in 0...rhsChars.count { matrix[0][j] = j }
         for i in 1...lhsChars.count {
             for j in 1...rhsChars.count {
                 if lhsChars[i - 1] == rhsChars[j - 1] {
                     matrix[i][j] = matrix[i - 1][j - 1]
                 } else {
-                    let deletion = matrix[i - 1][j] + 1
-                    let insertion = matrix[i][j - 1] + 1
-                    let substitution = matrix[i - 1][j - 1] + 1
-                    matrix[i][j] = min(deletion, insertion, substitution)
+                    matrix[i][j] = min(matrix[i - 1][j], matrix[i][j - 1], matrix[i - 1][j - 1]) + 1
                 }
             }
         }
@@ -134,19 +153,30 @@ struct FieldMappingConfigView: View {
     }
 }
 
+// MARK: - Mapping Row
+
 private struct MappingRow: View {
     @Bindable var mapping: FieldMapping
     let availableColumns: [String]
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.tertiary)
-                .frame(width: 20)
-            Text(mapping.placeholderText)
+                .font(.system(size: 11))
+                .foregroundStyle(.quaternary)
+                .frame(width: 28)
+
+            Text(mapping.displayName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
+
             Image(systemName: "arrow.right")
-                .foregroundStyle(.secondary)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(mapping.isMapped ? Color.accentColor : Color.secondary.opacity(0.3))
+                .frame(width: 28)
+
             Picker("Column", selection: $mapping.columnName) {
                 Text("Unmapped").tag(String?.none)
                 ForEach(availableColumns, id: \.self) { column in
@@ -161,18 +191,26 @@ private struct MappingRow: View {
                     Text(transform.label).tag(transform)
                 }
             }
-            .frame(width: 140, alignment: .leading)
+            .frame(width: 130, alignment: .leading)
 
-            HStack(spacing: 6) {
-                Image(systemName: mapping.isMapped ? "checkmark.circle.fill" : "xmark.circle")
-                    .foregroundStyle(mapping.isMapped ? .green : .secondary)
-                if mapping.isAutoMatched {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.yellow)
+            // Status indicator
+            HStack(spacing: 4) {
+                if mapping.isMapped {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    if mapping.isAutoMatched {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange)
+                    }
+                } else {
+                    Image(systemName: "circle")
+                        .foregroundStyle(.quaternary)
                 }
             }
-            .frame(width: 80, alignment: .leading)
+            .font(.system(size: 13))
+            .frame(width: 70, alignment: .center)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
 }
