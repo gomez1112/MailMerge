@@ -174,7 +174,7 @@ private struct MappingRow: View {
 
             Image(systemName: "arrow.right")
                 .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(mapping.isMapped ? Color.accentColor : Color.secondary.opacity(0.3))
+                .foregroundStyle(mapping.isMapped ? Color.mergeformBlue : Color.secondary.opacity(0.3))
                 .frame(width: 28)
 
             Picker("Column", selection: $mapping.columnName) {

@@ -259,6 +259,7 @@ enum MergeError: LocalizedError {
     case noRecords
     case pdfGenerationFailed
     case securityScopeUnavailable
+    case featureUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -271,6 +272,7 @@ enum MergeError: LocalizedError {
         case .noRecords: return "No records were found in the data source."
         case .pdfGenerationFailed: return "Failed to generate the PDF output."
         case .securityScopeUnavailable: return "The app could not access the selected file."
+        case .featureUnavailable: return "This feature isn't available on the current platform."
         }
     }
 }
@@ -282,6 +284,7 @@ struct SheetData: Equatable {
 
 struct MergeResult {
     let outputURL: URL?
+    let attachmentURL: URL?
     let recordCount: Int
     let duration: TimeInterval
 }

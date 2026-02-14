@@ -1,7 +1,14 @@
 import SwiftUI
+#if canImport(MessageUI)
+import MessageUI
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct PreviewConfigView: View {
     @Environment(\.services) private var services
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable var job: MailMergeJob
 
     @State private var previewData: Data?
@@ -13,6 +20,18 @@ struct PreviewConfigView: View {
     @State private var mergeProgress: (current: Int, total: Int) = (0, 0)
     @State private var mergeResult: MergeResult?
     @State private var isMerging = false
+    @State private var showingEmailComposer = false
+    @State private var emailAttachment: EmailAttachment?
+    @State private var showingEmailError = false
+    @State private var emailErrorMessage = ""
+    @State private var emailRecipient = ""
+    @State private var emailSubject = "Merged Documents"
+    @State private var emailBody = "Hi,\n\nAttached are the merged documents.\n\nThanks!"
+    @State private var sendAfterMerge = false
+#if canImport(UIKit)
+    @State private var showingShareSheet = false
+    @State private var shareItems: [Any] = []
+#endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -25,39 +44,74 @@ struct PreviewConfigView: View {
             // Stats row
             HStack(spacing: 12) {
                 StatCard(
-                    systemImageName: "doc.plaintext",
+                    systemImageName: "doc.plaintext.fill",
                     value: "\(job.fieldMappings.count)",
-                    label: "Fields"
+                    label: "Fields",
+                    iconColor: .mergeformBlue
                 )
                 StatCard(
-                    systemImageName: "checkmark.circle",
+                    systemImageName: "checkmark.circle.fill",
                     value: "\(job.fieldMappings.filter { $0.isMapped }.count)",
-                    label: "Mapped"
+                    label: "Mapped",
+                    iconColor: .green
                 )
                 StatCard(
-                    systemImageName: "tablecells",
+                    systemImageName: "tablecells.fill",
                     value: "\(job.availableColumns.count)",
-                    label: "Columns"
+                    label: "Columns",
+                    iconColor: .mergeformOrange
                 )
             }
 
-            HStack(alignment: .top, spacing: 16) {
-                // PDF Preview pane
-                previewPane
-
-                // Run merge sidebar
-                VStack(spacing: 12) {
+        Group {
+            if horizontalSizeClass == .compact {
+                VStack(spacing: 16) {
+                    previewPane
                     mergeSettingsCard
                     runMergeCard
                 }
-                .frame(width: 240)
+            } else {
+                HStack(alignment: .top, spacing: 16) {
+                    // PDF Preview pane
+                    previewPane
+
+                    // Run merge sidebar
+                    VStack(spacing: 12) {
+                        mergeSettingsCard
+                        runMergeCard
+                    }
+                    .frame(width: 240)
+                }
             }
+        }
         }
         .alert("Merge Error", isPresented: $showingErrorAlert) {
             Button("OK") { }
         } message: {
             Text(errorMessage)
         }
+        .alert("Email Unavailable", isPresented: $showingEmailError) {
+            Button("OK") { }
+        } message: {
+            Text(emailErrorMessage)
+        }
+#if canImport(MessageUI)
+        .sheet(isPresented: $showingEmailComposer) {
+            if let emailAttachment {
+                MailComposeView(
+                    attachment: emailAttachment,
+                    recipient: emailRecipient,
+                    subject: emailSubject,
+                    body: emailBody
+                )
+            }
+        }
+#endif
+#if canImport(UIKit)
+        .sheet(isPresented: $showingShareSheet) {
+            ShareSheet(items: shareItems)
+        }
+#endif
     }
 
     // MARK: - Preview Pane
@@ -156,6 +210,25 @@ struct PreviewConfigView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    CardLabel(title: "Email Delivery", systemImage: "paperplane")
+                    Toggle("Send after merge", isOn: $sendAfterMerge)
+                        .font(.system(size: 12))
+                    TextField("Recipient (optional)", text: $emailRecipient)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                    TextField("Subject", text: $emailSubject)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                    TextEditor(text: $emailBody)
+                        .font(.system(size: 12))
+                        .frame(minHeight: 80)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.12))
+                        )
+                }
 
                 if mergeProgress.total > 0 {
                     VStack(alignment: .leading, spacing: 6) {
@@ -174,7 +247,7 @@ struct PreviewConfigView: View {
                             total: Double(mergeProgress.total)
                         )
                         .progressViewStyle(.linear)
-                        .tint(.accentColor)
+                        .tint(Color.mergeformBlue)
                     }
                 }
 
@@ -192,6 +265,16 @@ struct PreviewConfigView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.top, 2)
+                    Button {
+                        emailMergeResult(mergeResult)
+                    } label: {
+                        Label("Email Output", systemImage: "paperplane.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(mergeResult.attachmentURL == nil)
                 }
             }
         }
@@ -215,6 +298,7 @@ struct PreviewConfigView: View {
                     HStack(spacing: 8) {
                         if isMerging {
                             ProgressView().controlSize(.small)
+                                .tint(.white)
                         } else {
                             Image(systemName: "play.fill")
                         }
@@ -222,11 +306,11 @@ struct PreviewConfigView: View {
                             .font(.system(size: 13, weight: .semibold))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
                 .disabled(!job.isConfigured || isMerging)
-                .tint(job.isConfigured ? .accentColor : .secondary)
             }
         }
     }
@@ -274,6 +358,10 @@ struct PreviewConfigView: View {
                 await MainActor.run {
                     mergeResult = result
                     isMerging = false
+                    emailAttachment = makeEmailAttachment(from: result)
+                    if sendAfterMerge {
+                        emailMergeResult(result)
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -286,4 +374,89 @@ struct PreviewConfigView: View {
     }
 
     private var hasPreview: Bool { previewData != nil }
+
+    private func makeEmailAttachment(from result: MergeResult) -> EmailAttachment? {
+        guard let url = result.attachmentURL else { return nil }
+        let ext = url.pathExtension.lowercased()
+        let mimeType = ext == "zip" ? "application/zip" : "application/pdf"
+        return EmailAttachment(
+            url: url,
+            filename: url.lastPathComponent,
+            mimeType: mimeType
+        )
+    }
+
+    private func emailMergeResult(_ result: MergeResult) {
+        guard let attachment = makeEmailAttachment(from: result) else {
+            emailErrorMessage = "No output file is available to attach."
+            showingEmailError = true
+            return
+        }
+#if canImport(MessageUI)
+        guard MFMailComposeViewController.canSendMail() else {
+            shareItems = [emailSubject, emailBody, attachment.url]
+            showingShareSheet = true
+            return
+        }
+        emailAttachment = attachment
+        showingEmailComposer = true
+#elseif canImport(AppKit)
+        let service = NSSharingService(named: .composeEmail)
+        service?.recipients = emailRecipient.isEmpty ? [] : [emailRecipient]
+        service?.subject = emailSubject
+        service?.perform(withItems: [emailBody, attachment.url])
+        if service == nil {
+            emailErrorMessage = "No email sharing service is available."
+            showingEmailError = true
+        }
+#else
+        emailErrorMessage = "Email is not supported on this platform."
+        showingEmailError = true
+#endif
+    }
 }
+
+private struct EmailAttachment {
+    let url: URL
+    let filename: String
+    let mimeType: String
+}
+
+#if canImport(MessageUI)
+private struct MailComposeView: UIViewControllerRepresentable {
+    let attachment: EmailAttachment
+    let recipient: String
+    let subject: String
+    let body: String
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let controller = MFMailComposeViewController()
+        controller.mailComposeDelegate = context.coordinator
+        controller.setSubject(subject)
+        if !recipient.isEmpty {
+            controller.setToRecipients([recipient])
+        }
+        controller.setMessageBody(body, isHTML: false)
+        if let data = try? Data(contentsOf: attachment.url) {
+            controller.addAttachmentData(data, mimeType: attachment.mimeType, fileName: attachment.filename)
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        func mailComposeController(
+            _ controller: MFMailComposeViewController,
+            didFinishWith result: MFMailComposeResult,
+            error: Error?
+        ) {
+            controller.dismiss(animated: true)
+        }
+    }
+}
+#endif

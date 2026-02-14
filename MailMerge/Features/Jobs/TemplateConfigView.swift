@@ -102,12 +102,12 @@ struct TemplateConfigView: View {
                         ForEach(["{{Field}}", "<<Field>>", "${Field}", "[[Field]]"], id: \.self) { format in
                             Text(format)
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.mergeformBlue)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(Color.accentColor.opacity(0.08))
+                                        .fill(Color.mergeformBlue.opacity(0.08))
                                 )
                         }
                     }
@@ -161,11 +161,15 @@ struct TemplateConfigView: View {
     }
 
     private func storeTemplateURL(_ url: URL) throws {
+        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
         defer { url.stopAccessingSecurityScopedResource() }
         let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        #else
+        let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
+        #endif
         job.templateBookmarkData = bookmarkData
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()
@@ -229,7 +233,7 @@ struct SelectedFileRow: View {
                 onChangeTap()
             }
             .font(.system(size: 12))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.mergeformBlue)
             .buttonStyle(.plain)
         }
     }
