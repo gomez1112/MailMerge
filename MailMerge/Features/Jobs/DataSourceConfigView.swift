@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct DataSourceConfigView: View {
     @Environment(\.services) private var services
     @Bindable var job: MailMergeJob
-    let onError: (Error) -> Void
+    let onError: (Error, (() -> Void)?) -> Void
 
     @State private var showingImporter = false
     @State private var previewData = SheetData(headers: [], rows: [])
@@ -183,7 +183,7 @@ struct DataSourceConfigView: View {
             guard let url = urls.first else { return }
             try storeSpreadsheetURL(url)
         } catch {
-            onError(error)
+            onError(error, nil)
         }
     }
 
@@ -193,7 +193,7 @@ struct DataSourceConfigView: View {
         }
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
             if let error {
-                DispatchQueue.main.async { onError(error) }
+                DispatchQueue.main.async { onError(error, nil) }
                 return
             }
             guard let data = item as? Data,
@@ -202,7 +202,7 @@ struct DataSourceConfigView: View {
                 do {
                     try storeSpreadsheetURL(url)
                 } catch {
-                    onError(error)
+                    onError(error, nil)
                 }
             }
         }
@@ -210,6 +210,9 @@ struct DataSourceConfigView: View {
     }
 
     private func storeSpreadsheetURL(_ url: URL) throws {
+        guard isValidXlsxURL(url) else {
+            throw MergeError.invalidSpreadsheet
+        }
         #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
@@ -240,7 +243,7 @@ struct DataSourceConfigView: View {
                 }
             } catch {
                 await MainActor.run {
-                    onError(error)
+                    onError(error, { loadSheetNames() })
                     isLoadingSheets = false
                 }
             }
@@ -260,13 +263,29 @@ struct DataSourceConfigView: View {
                 await MainActor.run {
                     previewData = preview
                     job.availableColumns = preview.headers
+                    normalizeColumnMappings(using: preview.headers)
                     isLoadingPreview = false
                 }
             } catch {
                 await MainActor.run {
-                    onError(error)
+                    onError(error, { loadPreview(sheetName: sheetName) })
                     isLoadingPreview = false
                 }
+            }
+        }
+    }
+
+    private func isValidXlsxURL(_ url: URL) -> Bool {
+        url.pathExtension.lowercased() == "xlsx"
+    }
+
+    private func normalizeColumnMappings(using headers: [String]) {
+        let headerSet = Set(headers)
+        for mapping in job.fieldMappings {
+            if let columnName = mapping.columnName, !headerSet.contains(columnName) {
+                mapping.columnName = nil
+                mapping.isAutoMatched = false
+                mapping.matchConfidence = 0
             }
         }
     }

@@ -52,9 +52,9 @@ enum MailMergeTier: Int, SubscriptionTier, CaseIterable, Comparable {
 /// Central location for all StoreKit product identifiers.
 /// Replace these with your real App Store Connect product IDs before shipping.
 enum MailMergeProductIDs {
-    static let monthlySubscription  = "com.mailmerge.pro.monthly"
-    static let annualSubscription   = "com.mailmerge.pro.annual"
-    static let lifetimePurchase     = "com.mailmerge.pro.lifetime"
+    static let monthlySubscription  = "com.mergeform.pro.monthly"
+    static let annualSubscription   = "com.mergeform.pro.annual"
+    static let lifetimePurchase     = "com.mergeform.pro.lifetime"
 
     /// The subscription group ID configured in App Store Connect.
     static let subscriptionGroupID  = "MM800002"

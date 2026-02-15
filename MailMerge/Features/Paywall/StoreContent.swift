@@ -46,8 +46,12 @@ extension FlexPaywallFeature {
 extension SubscriptionShopConfiguration {
     /// Configuration used by the SubscriptionShopView paywall sheet.
     static var mailMergePro: SubscriptionShopConfiguration {
+        mailMergeProDark
+    }
+
+    static var mailMergeProDark: SubscriptionShopConfiguration {
         SubscriptionShopConfiguration(
-            title: "Mail Merge Pro",
+            title: "Mergeform Pro",
             subtitle: "Automate documents without limits",
             heroSystemImage: "doc.on.doc.fill",
             features: [
@@ -107,6 +111,71 @@ extension SubscriptionShopConfiguration {
                 heroStyle: .simple
             ),
             pickerBackground: Material.ultraThickMaterial
+        )
+    }
+
+    static var mailMergeProLight: SubscriptionShopConfiguration {
+        SubscriptionShopConfiguration(
+            title: "Mergeform",
+            subtitle: "Automate documents without limits",
+            heroSystemImage: "doc.on.doc.fill",
+            features: [
+                SubscriptionFeature(
+                    icon: "infinity",
+                    title: "Unlimited Records",
+                    description: "Merge as many rows as your spreadsheet has.",
+                    accentColor: .accentColor
+                ),
+                SubscriptionFeature(
+                    icon: "doc.on.doc.fill",
+                    title: "Batch PDF Output",
+                    description: "Individual files or a single combined PDF.",
+                    accentColor: .purple
+                ),
+                SubscriptionFeature(
+                    icon: "wand.and.stars",
+                    title: "Smart Field Matching",
+                    description: "Automatic placeholder-to-column mapping.",
+                    accentColor: .orange
+                ),
+                SubscriptionFeature(
+                    icon: "arrow.left.arrow.right",
+                    title: "Field Transformations",
+                    description: "Date, currency, case formatting per field.",
+                    accentColor: .green
+                ),
+                SubscriptionFeature(
+                    icon: "folder.badge.gearshape",
+                    title: "Custom Output Patterns",
+                    description: "Dynamic file names from your data columns.",
+                    accentColor: .blue
+                ),
+            ],
+            tiers: [
+                AppSubscriptionTier(
+                    productID: MailMergeProductIDs.monthlySubscription,
+                    systemImage: "calendar",
+                    color: .accentColor
+                ),
+                AppSubscriptionTier(
+                    productID: MailMergeProductIDs.annualSubscription,
+                    systemImage: "calendar.badge.checkmark",
+                    color: .purple
+                ),
+            ],
+            theme: .custom(
+                colors: [
+                    Color(red: 0.98, green: 0.96, blue: 0.94),
+                    Color(red: 0.96, green: 0.94, blue: 0.92),
+                    Color(red: 0.99, green: 0.98, blue: 0.97)
+                ],
+                accent: .accentColor,
+                titleColor: .black,
+                subtitleColor: .black.opacity(0.7),
+                cardStyle: .elevated,
+                heroStyle: .simple
+            ),
+            pickerBackground: Material.regularMaterial
         )
     }
 }

@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 struct OutputConfigView: View {
     @Bindable var job: MailMergeJob
     @State private var showingFolderPicker = false
+    @State private var showingErrorAlert = false
+    @State private var errorMessage = ""
 
     private var availableTokens: [String] {
         ["{Row}"] + job.availableColumns.map { "{\($0)}" }
@@ -68,7 +70,7 @@ struct OutputConfigView: View {
                     }
 
                     HStack(spacing: 8) {
-                        Image(systemName: "doc.badge.preview")
+                        Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Text("Preview: ")
@@ -108,6 +110,11 @@ struct OutputConfigView: View {
         ) { result in
             handleFolderImport(result)
         }
+        .alert("Output Folder Error", isPresented: $showingErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
     }
 
     private var previewFileName: String {
@@ -123,8 +130,8 @@ struct OutputConfigView: View {
             guard let url = urls.first else { return }
             #if os(macOS)
             guard url.startAccessingSecurityScopedResource() else {
-                job.outputFolderBookmarkData = nil
-                job.outputFolderName = nil
+                clearOutputFolder()
+                presentOutputError(MergeError.outputAccessDenied.localizedDescription)
                 return
             }
             defer { url.stopAccessingSecurityScopedResource() }
@@ -136,8 +143,18 @@ struct OutputConfigView: View {
             job.outputFolderName = url.lastPathComponent
             job.modifiedAt = Date()
         } catch {
-            job.outputFolderBookmarkData = nil
-            job.outputFolderName = nil
+            clearOutputFolder()
+            presentOutputError(error.localizedDescription)
         }
+    }
+
+    private func clearOutputFolder() {
+        job.outputFolderBookmarkData = nil
+        job.outputFolderName = nil
+    }
+
+    private func presentOutputError(_ message: String) {
+        errorMessage = message
+        showingErrorAlert = true
     }
 }

@@ -155,6 +155,7 @@ actor ExcelParserService {
             throw MergeError.invalidSpreadsheet
         }
         let sharedStrings = try? file.parseSharedStrings()
+        let styles = try? file.parseStyles()
         let workbooks = try file.parseWorkbooks()
         guard let workbook = workbooks.first else {
             throw MergeError.invalidSpreadsheet
@@ -168,23 +169,47 @@ actor ExcelParserService {
             throw MergeError.emptySheet
         }
 
-        let headers = valuesForRow(headerRow, sharedStrings: sharedStrings, minimumCount: nil)
+        let headers = valuesForRow(
+            headerRow,
+            headers: nil,
+            sharedStrings: sharedStrings,
+            styles: styles,
+            minimumCount: nil
+        )
         let dataRows = rows.dropFirst()
         var previewRows: [[String]] = []
         for (index, row) in dataRows.enumerated() {
             if let rowLimit, index >= rowLimit { break }
-            let values = valuesForRow(row, sharedStrings: sharedStrings, minimumCount: headers.count)
+            let values = valuesForRow(
+                row,
+                headers: headers,
+                sharedStrings: sharedStrings,
+                styles: styles,
+                minimumCount: headers.count
+            )
             previewRows.append(values)
         }
         return SheetData(headers: headers, rows: previewRows)
     }
 
-    private func valuesForRow(_ row: Row, sharedStrings: SharedStrings?, minimumCount: Int?) -> [String] {
+    private func valuesForRow(
+        _ row: Row,
+        headers: [String]?,
+        sharedStrings: SharedStrings?,
+        styles: Styles?,
+        minimumCount: Int?
+    ) -> [String] {
         var values: [Int: String] = [:]
         for cell in row.cells {
             let columnName = cell.reference.column.value
             let index = columnIndex(from: columnName)
-            let value = cellString(cell, sharedStrings: sharedStrings)
+            let headerName = headers?.indices.contains(index) == true ? headers?[index] : nil
+            let value = cellString(
+                cell,
+                sharedStrings: sharedStrings,
+                styles: styles,
+                headerName: headerName
+            )
             values[index] = value
         }
         let maxIndex = max(values.keys.max() ?? -1, (minimumCount ?? 0) - 1)
@@ -207,11 +232,267 @@ actor ExcelParserService {
         return max(result - 1, 0)
     }
 
-    private func cellString(_ cell: Cell, sharedStrings: SharedStrings?) -> String {
+    private func cellString(
+        _ cell: Cell,
+        sharedStrings: SharedStrings?,
+        styles: Styles?,
+        headerName: String?
+    ) -> String {
         if let sharedStrings, let value = cell.stringValue(sharedStrings) {
-            return value
+            if let formatted = formattedStringValue(
+                value,
+                cell: cell,
+                styles: styles,
+                headerName: headerName
+            ) {
+                return formatted
+            }
+            return normalizeNumericString(value)
         }
-        return cell.value ?? ""
+        guard let rawValue = cell.value else { return "" }
+        if let formatted = formattedCellValue(
+            rawValue,
+            cell: cell,
+            styles: styles,
+            headerName: headerName
+        ) {
+            return formatted
+        }
+        return normalizeNumericString(rawValue)
+    }
+
+    private func formattedStringValue(
+        _ value: String,
+        cell: Cell,
+        styles: Styles?,
+        headerName: String?
+    ) -> String? {
+        guard let number = Double(value) else { return nil }
+        if cell.type == .date {
+            return formatDate(excelDate(from: number), kind: inferredDateKind(for: number), formatCode: "m/d/yy h:mm")
+        }
+        guard let format = formatCode(for: cell, styles: styles) else {
+            if shouldForceTime(headerName: headerName, rawValue: value, number: number) {
+                return formatDate(excelDate(from: number), kind: .time, formatCode: "h:mm")
+            }
+            return formatPlainNumber(number, rawValue: value)
+        }
+        let formatKind = formatKind(for: format)
+        if formatKind == .number, shouldForceTime(headerName: headerName, rawValue: value, number: number) {
+            return formatDate(excelDate(from: number), kind: .time, formatCode: "h:mm")
+        }
+        switch formatKind {
+        case .date, .time, .dateTime:
+            let date = excelDate(from: number)
+            return formatDate(date, kind: formatKind, formatCode: format)
+        case .number:
+            return formatPlainNumber(number, rawValue: value)
+        }
+    }
+
+    private func formattedCellValue(
+        _ rawValue: String,
+        cell: Cell,
+        styles: Styles?,
+        headerName: String?
+    ) -> String? {
+        guard let number = Double(rawValue) else { return nil }
+        if cell.type == .date {
+            return formatDate(excelDate(from: number), kind: inferredDateKind(for: number), formatCode: "m/d/yy h:mm")
+        }
+        guard let format = formatCode(for: cell, styles: styles) else {
+            if shouldForceTime(headerName: headerName, rawValue: rawValue, number: number) {
+                return formatDate(excelDate(from: number), kind: .time, formatCode: "h:mm")
+            }
+            return formatPlainNumber(number, rawValue: rawValue)
+        }
+
+        let formatKind = formatKind(for: format)
+        if formatKind == .number, shouldForceTime(headerName: headerName, rawValue: rawValue, number: number) {
+            return formatDate(excelDate(from: number), kind: .time, formatCode: "h:mm")
+        }
+        switch formatKind {
+        case .date, .time, .dateTime:
+            let date = excelDate(from: number)
+            return formatDate(date, kind: formatKind, formatCode: format)
+        case .number:
+            return formatPlainNumber(number, rawValue: rawValue)
+        }
+    }
+
+    private func formatPlainNumber(_ number: Double, rawValue: String) -> String {
+        if number.rounded() == number {
+            return String(Int(number))
+        }
+        return rawValue
+    }
+
+    private func formatCode(for cell: Cell, styles: Styles?) -> String? {
+        guard let styles,
+              let styleIndex = cell.styleIndex,
+              let cellFormats = styles.cellFormats?.items,
+              styleIndex < cellFormats.count else {
+            return nil
+        }
+        let format = cellFormats[styleIndex]
+        let numFmtId = format.numberFormatId
+        if let numberFormats = styles.numberFormats?.items,
+           let matched = numberFormats.first(where: { $0.id == numFmtId }) {
+            return matched.formatCode
+        }
+        return builtinFormatCode(for: numFmtId)
+    }
+
+    private func builtinFormatCode(for numFmtId: Int) -> String? {
+        switch numFmtId {
+        case 14: return "m/d/yyyy"
+        case 15: return "d-mmm-yy"
+        case 16: return "d-mmm"
+        case 17: return "mmm-yy"
+        case 18: return "h:mm AM/PM"
+        case 19: return "h:mm:ss AM/PM"
+        case 20: return "h:mm"
+        case 21: return "h:mm:ss"
+        case 22: return "m/d/yyyy h:mm"
+        case 45: return "mm:ss"
+        case 46: return "[h]:mm:ss"
+        case 47: return "mm:ss.0"
+        default: return nil
+        }
+    }
+
+    private enum ExcelFormatKind {
+        case date
+        case time
+        case dateTime
+        case number
+    }
+
+    private func formatKind(for formatCode: String) -> ExcelFormatKind {
+        let sanitized = stripFormatLiterals(formatCode.lowercased())
+        let hasHour = sanitized.contains("h")
+        let hasSecond = sanitized.contains("s")
+        let hasYear = sanitized.contains("y")
+        let hasDay = sanitized.contains("d")
+        let hasMonth = sanitized.contains("m")
+
+        let hasTime = hasHour || hasSecond
+        let hasDate = hasYear || hasDay || (hasMonth && !hasTime)
+        if hasDate && hasTime { return .dateTime }
+        if hasTime { return .time }
+        if hasDate { return .date }
+        return .number
+    }
+
+    private func stripFormatLiterals(_ format: String) -> String {
+        var output = ""
+        var isInQuote = false
+        var isInBracket = false
+        for char in format {
+            if char == "\"" {
+                isInQuote.toggle()
+                continue
+            }
+            if char == "[" {
+                isInBracket = true
+                continue
+            }
+            if char == "]" {
+                isInBracket = false
+                continue
+            }
+            if isInQuote || isInBracket { continue }
+            output.append(char)
+        }
+        return output
+    }
+
+    private func excelDate(from serial: Double) -> Date {
+        let adjustedSerial: Double
+        if serial >= 60 {
+            adjustedSerial = serial - 1
+        } else {
+            adjustedSerial = serial
+        }
+        let calendar = Calendar(identifier: .gregorian)
+        let base = calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: TimeZone(secondsFromGMT: 0),
+            year: 1899,
+            month: 12,
+            day: 31
+        )) ?? Date(timeIntervalSince1970: 0)
+        return base.addingTimeInterval(adjustedSerial * 86_400)
+    }
+
+    private func formatDate(_ date: Date, kind: ExcelFormatKind, formatCode: String) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.locale = Locale.current
+        let upperCode = formatCode.uppercased()
+        let includesSeconds = upperCode.contains("S")
+        switch kind {
+        case .date:
+            formatter.dateStyle = .short
+            formatter.timeStyle = .none
+        case .time:
+            formatter.dateStyle = .none
+            formatter.dateFormat = upperCode.contains("AM/PM")
+                ? (includesSeconds ? "h:mm:ss a" : "h:mm a")
+                : (includesSeconds ? "H:mm:ss" : "H:mm")
+        case .dateTime:
+            formatter.dateStyle = .short
+            formatter.dateFormat = upperCode.contains("AM/PM")
+                ? (includesSeconds ? "M/d/yy h:mm:ss a" : "M/d/yy h:mm a")
+                : (includesSeconds ? "M/d/yy H:mm:ss" : "M/d/yy H:mm")
+        case .number:
+            return formatPlainNumber(Double(date.timeIntervalSince1970), rawValue: "\(date.timeIntervalSince1970)")
+        }
+        return formatter.string(from: date)
+    }
+
+    private func inferredDateKind(for serial: Double) -> ExcelFormatKind {
+        if serial < 1 { return .time }
+        if serial.rounded() == serial { return .date }
+        return .dateTime
+    }
+
+    private func isLikelyTimeHeader(_ headerName: String?) -> Bool {
+        guard let headerName else { return false }
+        let normalized = headerName.lowercased()
+        return normalized.contains("time")
+            || normalized.contains("arrival")
+            || normalized.contains("departure")
+            || normalized.contains("check in")
+            || normalized.contains("check-in")
+            || normalized.contains("check out")
+            || normalized.contains("check-out")
+    }
+
+    private func shouldForceTime(headerName: String?, rawValue: String, number: Double) -> Bool {
+        guard number > 0, number < 1 else { return false }
+        if isLikelyTimeHeader(headerName) { return true }
+        if isLikelyPercentHeader(headerName) { return false }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasManyDecimals = trimmed.contains(".") && trimmed.count >= 6
+        return hasManyDecimals
+    }
+
+    private func isLikelyPercentHeader(_ headerName: String?) -> Bool {
+        guard let headerName else { return false }
+        let normalized = headerName.lowercased()
+        return normalized.contains("percent")
+            || normalized.contains("%")
+            || normalized.contains("rate")
+            || normalized.contains("ratio")
+    }
+
+    private func normalizeNumericString(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasSuffix(".0"), let number = Double(trimmed), number.rounded() == number {
+            return String(Int(number))
+        }
+        return trimmed
     }
 }
 
@@ -508,9 +789,11 @@ final class MergeEngine {
             throw MergeError.outputAccessDenied
         }
 
-        job.status = .running
-        job.lastRunDate = Date()
-        job.lastRunRecordCount = nil
+        await MainActor.run {
+            job.status = .running
+            job.lastRunDate = Date()
+            job.lastRunRecordCount = nil
+        }
 
         do {
             let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
@@ -588,9 +871,11 @@ final class MergeEngine {
             }
 
             let duration = Date().timeIntervalSince(start)
-            job.status = .completed
-            job.lastRunDate = Date()
-            job.lastRunRecordCount = totalRecords
+            await MainActor.run {
+                job.status = .completed
+                job.lastRunDate = Date()
+                job.lastRunRecordCount = totalRecords
+            }
             return MergeResult(
                 outputURL: outputURL,
                 attachmentURL: attachmentURL,
@@ -598,9 +883,11 @@ final class MergeEngine {
                 duration: duration
             )
         } catch {
-            job.status = .failed
-            job.lastRunDate = Date()
-            job.lastRunRecordCount = nil
+            await MainActor.run {
+                job.status = .failed
+                job.lastRunDate = Date()
+                job.lastRunRecordCount = nil
+            }
             throw error
         }
     }

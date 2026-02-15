@@ -8,6 +8,7 @@ struct JobDetailView: View {
     @State private var selectedStep: MergeStep = .template
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
+    @State private var retryAction: (() -> Void)?
     @State private var initialSnapshot: JobSnapshot?
     @State private var isRestoring = false
     @Bindable var job: MailMergeJob
@@ -53,9 +54,11 @@ struct JobDetailView: View {
 
     @ViewBuilder
     private var errorAlertButtons: some View {
-        Button("OK", role: .cancel) { }
-        if shouldShowRecoveryButton() {
-            Button("Try Again") { retryLastAction() }
+        Button("OK", role: .cancel) {
+            retryAction = nil
+        }
+        if let retryAction {
+            Button("Try Again") { retryAction() }
         }
     }
 
@@ -283,12 +286,13 @@ struct JobDetailView: View {
 
     // MARK: - Error Handling
 
-    private func handleError(_ error: Error) {
+    private func handleError(_ error: Error, retry: (() -> Void)? = nil) {
         if let mergeError = error as? MergeError {
             errorMessage = "\(mergeError.localizedDescription)\n\n\(recoveryInfo(for: mergeError))"
         } else {
             errorMessage = error.localizedDescription
         }
+        retryAction = retry
         showingErrorAlert = true
     }
 
@@ -316,12 +320,6 @@ struct JobDetailView: View {
             return "Try again on macOS, where DOCX parsing is supported."
         }
     }
-
-    private func shouldShowRecoveryButton() -> Bool {
-        errorMessage.contains("Try selecting") || errorMessage.contains("try again")
-    }
-
-    private func retryLastAction() { }
 
     private func updateStatus() {
         guard !isRestoring else { return }
@@ -373,6 +371,7 @@ private struct JobSnapshot {
     let dataSourceFileName: String?
     let selectedSheetName: String?
     let availableSheets: [String]
+    let combineIntoSinglePDF: Bool
     let fieldMappings: [FieldMappingSnapshot]
     let outputFolderBookmarkData: Data?
     let outputFolderName: String?
@@ -392,6 +391,7 @@ private struct JobSnapshot {
         dataSourceFileName = job.dataSourceFileName
         selectedSheetName = job.selectedSheetName
         availableSheets = job.availableSheets
+        combineIntoSinglePDF = job.combineIntoSinglePDF
         fieldMappings = job.fieldMappings.map(FieldMappingSnapshot.init)
         outputFolderBookmarkData = job.outputFolderBookmarkData
         outputFolderName = job.outputFolderName
@@ -412,6 +412,7 @@ private struct JobSnapshot {
         job.dataSourceFileName = dataSourceFileName
         job.selectedSheetName = selectedSheetName
         job.availableSheets = availableSheets
+        job.combineIntoSinglePDF = combineIntoSinglePDF
         job.outputFolderBookmarkData = outputFolderBookmarkData
         job.outputFolderName = outputFolderName
         job.outputFileNamePattern = outputFileNamePattern

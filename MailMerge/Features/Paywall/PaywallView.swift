@@ -9,12 +9,13 @@ import StoreKit
 struct PaywallView: View {
     @Environment(StoreKitService<MailMergeTier>.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
             SubscriptionShopView(
                 groupID: MailMergeProductIDs.subscriptionGroupID,
-                configuration: .mailMergePro
+                configuration: colorScheme == .dark ? .mailMergeProDark : .mailMergeProLight
             )
 
             // Lifetime purchase option

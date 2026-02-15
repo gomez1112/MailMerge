@@ -20,12 +20,12 @@
       "internalID" : "MM800004",
       "localizations" : [
         {
-          "description" : "Unlock Mail Merge Pro forever. One-time purchase, no subscription required.",
+          "description" : "Unlock Mergeform Pro forever. One-time purchase, no subscription required.",
           "displayName" : "Lifetime Access",
           "locale" : "en_US"
         }
       ],
-      "productID" : "com.mailmerge.pro.lifetime",
+      "productID" : "com.mergeform.pro.lifetime",
       "referenceName" : "Pro Lifetime",
       "type" : "NonConsumable"
     }
@@ -50,7 +50,7 @@
       "localizations" : [
 
       ],
-      "name" : "Mail Merge Pro",
+      "name" : "Mergeform",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -66,12 +66,12 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Full access to all Mail Merge Pro features. Cancel anytime.",
-              "displayName" : "Mail Merge Pro (Monthly)",
+              "description" : "Full access to all Mergeform Pro features. Cancel anytime.",
+              "displayName" : "MergeformPro (Monthly)",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.mailmerge.pro.monthly",
+          "productID" : "com.mergeform.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "MM800002",
@@ -98,12 +98,12 @@
           },
           "localizations" : [
             {
-              "description" : "Full access to all Mail Merge Pro features. Includes a 7-day free trial.",
-              "displayName" : "Mail Merge Pro (Annual)",
+              "description" : "Full access to all Mergeform Pro features. Includes a 7-day free trial.",
+              "displayName" : "Mergeform Pro (Annual)",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.mailmerge.pro.annual",
+          "productID" : "com.mergeform.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Annual",
           "subscriptionGroupID" : "MM800002",

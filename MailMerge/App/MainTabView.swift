@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import FlexStore
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -194,6 +195,7 @@ private enum SidebarDestination: Hashable {
 
 private struct TemplateLibraryView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(StoreKitService<MailMergeTier>.self) private var store
     @Query(sort: \MailMergeJob.modifiedAt, order: .reverse) private var jobs: [MailMergeJob]
     @Query(sort: [SortDescriptor(\Category.sortOrder), SortDescriptor(\Category.name)]) private var categories: [Category]
 
@@ -201,9 +203,18 @@ private struct TemplateLibraryView: View {
 
     @State private var showingImporter = false
     @State private var importErrorMessage: String?
+    @State private var showingPaywall = false
+    @State private var showingLimitAlert = false
+    @State private var showingPaywallAfterAlert = false
+    @State private var isStoreReady = false
 #if os(iOS)
     @State private var shareItem: ShareItem?
 #endif
+
+    @AppStorage("jobCreationCount") private var jobCreationCount = 0
+    @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
+
+    private let freeJobLimit = 3
 
     init(onOpenJobs: @escaping (UUID) -> Void) {
         self.onOpenJobs = onOpenJobs
@@ -304,6 +315,25 @@ private struct TemplateLibraryView: View {
                 Text(importErrorMessage)
             }
         }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
+        }
+        .alert("Free Job Limit Reached", isPresented: $showingLimitAlert) {
+            Button("OK", role: .cancel) {
+                if showingPaywallAfterAlert {
+                    showingPaywall = true
+                    showingPaywallAfterAlert = false
+                }
+            }
+        } message: {
+            Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
+        }
+        .onAppear(perform: scheduleStoreReadyCheck)
+        .onAppear(perform: cacheSubscriptionTier)
+        .onChange(of: store.subscriptionTier) { _, _ in
+            isStoreReady = true
+            cacheSubscriptionTier()
+        }
 #if os(iOS)
         .sheet(item: $shareItem) { item in
             ShareSheet(url: item.url)
@@ -335,6 +365,10 @@ private struct TemplateLibraryView: View {
     }
 
     private func storeTemplateURL(_ url: URL) throws -> UUID? {
+        guard canCreateJob else {
+            showLimitAlertAndPaywall()
+            return nil
+        }
         #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
@@ -358,16 +392,22 @@ private struct TemplateLibraryView: View {
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()
         modelContext.insert(job)
+        recordJobCreation()
         return job.id
     }
 
     private func createJob(from item: TemplateItem) -> UUID? {
+        guard canCreateJob else {
+            showLimitAlertAndPaywall()
+            return nil
+        }
         let category = uncategorizedCategory
         let job = MailMergeJob(name: "New Mail Merge", category: category)
         job.templateBookmarkData = item.bookmarkData
         job.templateFileName = item.fileName
         job.modifiedAt = Date()
         modelContext.insert(job)
+        recordJobCreation()
         return job.id
     }
 
@@ -383,6 +423,37 @@ private struct TemplateLibraryView: View {
 
     private var uncategorizedCategory: Category? {
         categories.first(where: { $0.isLocked }) ?? categories.first(where: { $0.name == "Uncategorized" })
+    }
+
+    private var canCreateJob: Bool {
+        if store.subscriptionTier >= .pro { return true }
+        if !isStoreReady {
+            if cachedSubscriptionTier >= MailMergeTier.pro.rawValue { return true }
+            return jobCreationCount < freeJobLimit
+        }
+        return jobCreationCount < freeJobLimit
+    }
+
+    private func recordJobCreation() {
+        if store.subscriptionTier < .pro {
+            jobCreationCount += 1
+        }
+    }
+
+    private func showLimitAlertAndPaywall() {
+        showingPaywallAfterAlert = true
+        showingLimitAlert = true
+    }
+
+    private func scheduleStoreReadyCheck() {
+        guard !isStoreReady else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            isStoreReady = true
+        }
+    }
+
+    private func cacheSubscriptionTier() {
+        cachedSubscriptionTier = store.subscriptionTier.rawValue
     }
 }
 

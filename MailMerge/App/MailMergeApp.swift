@@ -29,7 +29,7 @@ struct MailMergeApp: App {
     private let store = StoreKitService<MailMergeTier>()
 
     init() {
-        let schema = Schema([MailMergeJob.self, FieldMapping.self, Category.self])
+        let schema = Schema(versionedSchema: MailMergeSchemaV3.self)
         let storeURL = Self.storeURL()
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         do {
@@ -39,8 +39,15 @@ struct MailMergeApp: App {
                 configurations: [configuration]
             )
         } catch {
-            container = nil
-            _loadError = State(initialValue: error)
+            if let fallbackContainer = try? ModelContainer(
+                for: schema,
+                configurations: [configuration]
+            ) {
+                container = fallbackContainer
+            } else {
+                container = nil
+                _loadError = State(initialValue: error)
+            }
         }
     }
 
@@ -239,6 +246,10 @@ struct AppSettingsView: View {
                 RestorePurchasesButton<MailMergeTier>()
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
+            }
+            Section("Legal") {
+                Link("Privacy Policy", destination: URL(string: "https://transfinite.us/policies/MergeformPrivacy/")!)
+                Link("Terms of Use", destination: URL(string: "https://transfinite.us/policies/MergeformTerms/")!)
             }
         }
         .formStyle(.grouped)

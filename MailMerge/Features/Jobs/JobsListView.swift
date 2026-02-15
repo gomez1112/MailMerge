@@ -1,8 +1,10 @@
 import SwiftUI
 import SwiftData
+import FlexStore
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(StoreKitService<MailMergeTier>.self) private var store
 
     init(pendingJobID: Binding<UUID?> = .constant(nil)) {
         _pendingJobID = pendingJobID
@@ -29,6 +31,15 @@ struct ContentView: View {
     @State private var jobToRename: MailMergeJob?
 
     @State private var showingCategoryManager = false
+    @State private var showingPaywall = false
+    @State private var showingLimitAlert = false
+    @State private var showingPaywallAfterAlert = false
+    @State private var isStoreReady = false
+
+    @AppStorage("jobCreationCount") private var jobCreationCount = 0
+    @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
+
+    private let freeJobLimit = 3
 
     private var filteredJobs: [MailMergeJob] {
         guard !searchText.isEmpty else { return jobs }
@@ -39,32 +50,7 @@ struct ContentView: View {
         NavigationStack(path: $navigationPath) {
             List {
                 ForEach(categories) { category in
-                    let categoryJobs = filteredJobs.filter { ($0.category ?? uncategorizedCategory)?.id == category.id }
-                    Section {
-                        if categoryJobs.isEmpty {
-                            emptyCategory
-                        } else {
-                            ForEach(categoryJobs) { job in
-                                NavigationLink(value: job.id) {
-                                    JobRowView(job: job)
-                                }
-                                .badge(jobBadge(job))
-                                .contextMenu {
-                                    Button("Rename") { beginRename(job) }
-                                    Button("Delete", role: .destructive) { deleteJob(job) }
-                                }
-                            }
-                            .onDelete { offsets in
-                                deleteJobs(offsets: offsets, in: categoryJobs)
-                            }
-                        }
-                    } header: {
-                        CategoryHeaderView(
-                            category: category,
-                            onEdit: { beginEdit(category) },
-                            onDelete: { pendingDeleteCategory = category }
-                        )
-                    }
+                    categorySection(for: category)
                 }
             }
             .listStyle(.inset)
@@ -139,6 +125,19 @@ struct ContentView: View {
                     onMove: moveCategory
                 )
             }
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView()
+            }
+            .alert("Free Job Limit Reached", isPresented: $showingLimitAlert) {
+                Button("OK", role: .cancel) {
+                    if showingPaywallAfterAlert {
+                        showingPaywall = true
+                        showingPaywallAfterAlert = false
+                    }
+                }
+            } message: {
+                Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
+            }
             .alert("Delete Category?", isPresented: Binding(
                 get: { pendingDeleteCategory != nil },
                 set: { if !$0 { pendingDeleteCategory = nil } }
@@ -155,8 +154,14 @@ struct ContentView: View {
             }
         }
         .onAppear(perform: ensureDefaultCategoriesIfNeeded)
+        .onAppear(perform: scheduleStoreReadyCheck)
+        .onAppear(perform: cacheSubscriptionTier)
         .onAppear(perform: restoreNavigationPath)
         .onChange(of: navigationPath) { _, newPath in persistNavigationPath(newPath) }
+        .onChange(of: store.subscriptionTier) { _, _ in
+            isStoreReady = true
+            cacheSubscriptionTier()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .createNewJob)) { _ in createJob() }
         .focusedSceneValue(\.selectedJobID, navigationPath.last)
         .focusedSceneValue(\.deleteJobAction, focusedDeleteAction)
@@ -197,21 +202,60 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func categorySection(for category: Category) -> some View {
+        let categoryJobs = filteredJobs.filter { ($0.category ?? uncategorizedCategory)?.id == category.id }
+        Section {
+            if categoryJobs.isEmpty {
+                emptyCategory
+            } else {
+                ForEach(categoryJobs) { job in
+                    NavigationLink(value: job.id) {
+                        JobRowView(job: job)
+                    }
+                    .badge(jobBadge(job))
+                    .contextMenu {
+                        Button("Rename") { beginRename(job) }
+                        Button("Delete", role: .destructive) { deleteJob(job) }
+                    }
+                }
+                .onDelete { offsets in
+                    deleteJobs(offsets: offsets, in: categoryJobs)
+                }
+            }
+        } header: {
+            CategoryHeaderView(
+                category: category,
+                onEdit: { beginEdit(category) },
+                onDelete: { pendingDeleteCategory = category }
+            )
+        }
+    }
+
     private func persistNavigationPath(_ path: [UUID]) {
         navigationPathData = (try? JSONEncoder().encode(path)) ?? Data()
     }
 
     private func createJob() {
+        guard canCreateJob else {
+            showLimitAlertAndPaywall()
+            return
+        }
         newJobCategoryID = (uncategorizedCategory ?? categories.first)?.id
         showingNewJobSheet = true
     }
 
     private func confirmCreateJob() {
+        guard canCreateJob else {
+            showLimitAlertAndPaywall()
+            return
+        }
         let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
         let job = MailMergeJob(name: "New Mail Merge", category: category)
         modelContext.insert(job)
         navigationPath = [job.id]
         showingNewJobSheet = false
+        recordJobCreation()
     }
 
     private func deleteJobs(offsets: IndexSet, in source: [MailMergeJob]) {
@@ -251,6 +295,37 @@ struct ContentView: View {
 
     private var uncategorizedCategory: Category? {
         categories.first(where: { $0.isLocked }) ?? categories.first(where: { $0.name == "Uncategorized" })
+    }
+
+    private var canCreateJob: Bool {
+        if store.subscriptionTier >= .pro { return true }
+        if !isStoreReady {
+            if cachedSubscriptionTier >= MailMergeTier.pro.rawValue { return true }
+            return jobCreationCount < freeJobLimit
+        }
+        return jobCreationCount < freeJobLimit
+    }
+
+    private func recordJobCreation() {
+        if store.subscriptionTier < .pro {
+            jobCreationCount += 1
+        }
+    }
+
+    private func showLimitAlertAndPaywall() {
+        showingPaywallAfterAlert = true
+        showingLimitAlert = true
+    }
+
+    private func scheduleStoreReadyCheck() {
+        guard !isStoreReady else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            isStoreReady = true
+        }
+    }
+
+    private func cacheSubscriptionTier() {
+        cachedSubscriptionTier = store.subscriptionTier.rawValue
     }
 
     /// Returns a badge count for a job: shows last run record count for completed jobs,

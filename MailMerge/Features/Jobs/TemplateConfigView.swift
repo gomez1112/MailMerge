@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct TemplateConfigView: View {
     @Environment(\.services) private var services
     @Bindable var job: MailMergeJob
-    let onError: (Error) -> Void
+    let onError: (Error, (() -> Void)?) -> Void
 
     @State private var showingImporter = false
     @State private var detectedPlaceholders: [String] = []
@@ -134,7 +134,7 @@ struct TemplateConfigView: View {
             guard let url = urls.first else { return }
             try storeTemplateURL(url)
         } catch {
-            onError(error)
+            onError(error, nil)
         }
     }
 
@@ -144,7 +144,7 @@ struct TemplateConfigView: View {
         }
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
             if let error {
-                DispatchQueue.main.async { onError(error) }
+                DispatchQueue.main.async { onError(error, nil) }
                 return
             }
             guard let data = item as? Data,
@@ -153,7 +153,7 @@ struct TemplateConfigView: View {
                 do {
                     try storeTemplateURL(url)
                 } catch {
-                    onError(error)
+                    onError(error, nil)
                 }
             }
         }
@@ -161,6 +161,9 @@ struct TemplateConfigView: View {
     }
 
     private func storeTemplateURL(_ url: URL) throws {
+        guard isValidDocxURL(url) else {
+            throw MergeError.invalidTemplate
+        }
         #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
@@ -189,11 +192,15 @@ struct TemplateConfigView: View {
                 }
             } catch {
                 await MainActor.run {
-                    onError(error)
+                    onError(error, { scanTemplate() })
                     isScanning = false
                 }
             }
         }
+    }
+
+    private func isValidDocxURL(_ url: URL) -> Bool {
+        url.pathExtension.lowercased() == "docx"
     }
 
     private func syncMappings(with placeholders: [String]) {
