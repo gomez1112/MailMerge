@@ -37,7 +37,8 @@ actor DOCXParserService {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
             let matches = regex.matches(in: plainText, range: NSRange(plainText.startIndex..., in: plainText))
             for match in matches {
-                if let range = Range(match.range, in: plainText) {
+                guard match.numberOfRanges > 1 else { continue }
+                if let range = Range(match.range(at: 1), in: plainText) {
                     results.insert(String(plainText[range]))
                 }
             }
@@ -512,6 +513,20 @@ final class PDFGeneratorService {
         margins: EdgeInsets,
         headerImageData: Data?
     ) throws -> Data {
+        try generatePDF(
+            pages: AnySequence(pages),
+            pageSize: pageSize,
+            margins: margins,
+            headerImageData: headerImageData
+        )
+    }
+
+    func generatePDF<S: Sequence>(
+        pages: S,
+        pageSize: CGSize,
+        margins: EdgeInsets,
+        headerImageData: Data?
+    ) throws -> Data where S.Element == NSAttributedString {
         let baseTextRect = CGRect(
             x: margins.leading,
             y: margins.top,
@@ -814,13 +829,22 @@ final class MergeEngine {
             let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
             defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
             if singleDocument {
-                var pages: [NSAttributedString] = []
-                for (index, row) in dataRows.enumerated() {
-                    let rowData = buildRowData(headers: sheet.headers, row: row)
-                    let mergedText = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
-                    pages.append(mergedText)
-                    await MainActor.run {
-                        progress(index + 1, totalRecords)
+                var index = 0
+                let pages = AnySequence<NSAttributedString> {
+                    AnyIterator {
+                        guard index < dataRows.count else { return nil }
+                        let row = dataRows[index]
+                        let rowData = self.buildRowData(headers: sheet.headers, row: row)
+                        let mergedText = self.applyMappings(
+                            templateText: templateText.value,
+                            rowData: rowData,
+                            mappings: mappings
+                        )
+                        index += 1
+                        Task { @MainActor in
+                            progress(index, totalRecords)
+                        }
+                        return mergedText
                     }
                 }
                 let data = try await MainActor.run {
@@ -832,7 +856,7 @@ final class MergeEngine {
                     )
                 }
                 let filename = sanitizeFileName("Merged_\(jobName)").appending(".pdf")
-                let fileURL = outputFolderURL.appendingPathComponent(filename)
+                let fileURL = outputFolderURL.appending(path: filename)
                 try data.write(to: fileURL)
                 outputURL = fileURL
                 attachmentURL = fileURL
@@ -855,7 +879,7 @@ final class MergeEngine {
                         rowIndex: index + 1,
                         rowData: rowData
                     )
-                    let fileURL = outputFolderURL.appendingPathComponent(fileName)
+                    let fileURL = outputFolderURL.appending(path: fileName)
                     try data.write(to: fileURL)
                     lastOutput = fileURL
                     outputFiles.append(fileURL)
@@ -959,7 +983,7 @@ final class MergeEngine {
     private func createZipAttachment(files: [URL], jobName: String) throws -> URL? {
         guard !files.isEmpty else { return nil }
         let zipName = sanitizeFileName("Merged_\(jobName)").appending(".zip")
-        let zipURL = FileManager.default.temporaryDirectory.appendingPathComponent(zipName)
+        let zipURL = FileManager.default.temporaryDirectory.appending(path: zipName)
         if FileManager.default.fileExists(atPath: zipURL.path) {
             try? FileManager.default.removeItem(at: zipURL)
         }

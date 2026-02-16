@@ -319,8 +319,11 @@ struct ContentView: View {
 
     private func scheduleStoreReadyCheck() {
         guard !isStoreReady else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isStoreReady = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                isStoreReady = true
+            }
         }
     }
 

@@ -144,12 +144,14 @@ struct TemplateConfigView: View {
         }
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
             if let error {
-                DispatchQueue.main.async { onError(error, nil) }
+                Task { @MainActor in
+                    onError(error, nil)
+                }
                 return
             }
             guard let data = item as? Data,
                   let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 do {
                     try storeTemplateURL(url)
                 } catch {

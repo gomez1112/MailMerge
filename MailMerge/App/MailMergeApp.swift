@@ -120,11 +120,11 @@ struct MailMergeApp: App {
 
     private static func storeURL() -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let folderURL = appSupport[0].appendingPathComponent("MailMerge", isDirectory: true)
+        let folderURL = appSupport[0].appending(path: "MailMerge", directoryHint: .isDirectory)
         if !FileManager.default.fileExists(atPath: folderURL.path) {
             try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         }
-        return folderURL.appendingPathComponent("MailMerge.sqlite")
+        return folderURL.appending(path: "MailMerge.sqlite")
     }
 }
 

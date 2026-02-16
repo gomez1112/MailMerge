@@ -1,5 +1,5 @@
 {
-  "originHash" : "8ee4c951704715f5fbabdbc24658fe1b1612612ae1a45ae7e185a9611e9ce965",
+  "originHash" : "24d74f3a360392ddad6c0950119110908c4bc6658478cdc337d0622631d382d6",
   "pins" : [
     {
       "identity" : "corexlsx",
@@ -11,8 +11,6 @@
       }
     },
     {
-<<<<<<< HEAD
-=======
       "identity" : "flexstore",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gomez1112/FlexStore",
@@ -31,7 +29,6 @@
       }
     },
     {
->>>>>>> Dev
       "identity" : "xmlcoder",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/maxdesiatov/XMLCoder.git",
