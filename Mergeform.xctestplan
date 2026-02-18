@@ -1,0 +1,47 @@
+{
+  "configurations" : [
+    {
+      "id" : "4684B4A9-1C0D-4D8E-B766-C95BDF3B53F7",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : {
+      "targets" : [
+        {
+          "containerPath" : "container:MailMerge.xcodeproj",
+          "identifier" : "CC87A4E42F34A5FE00EBE819",
+          "name" : "MailMerge"
+        }
+      ]
+    },
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:MailMerge.xcodeproj",
+      "identifier" : "CC87A4E42F34A5FE00EBE819",
+      "name" : "MailMerge"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:MailMerge.xcodeproj",
+        "identifier" : "CC8E3A872F3EC626005DDBF7",
+        "name" : "MailMergeTests"
+      }
+    },
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:MailMerge.xcodeproj",
+        "identifier" : "CC3D7B172F454DF0004D55B2",
+        "name" : "MergeformTests"
+      }
+    }
+  ],
+  "version" : 1
+}
