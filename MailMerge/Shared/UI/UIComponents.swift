@@ -547,22 +547,6 @@ extension View {
 #endif
     }
 
-    @ViewBuilder
-    func applyGlassButtonStyleIfAvailable(isProminent: Bool = false) -> some View {
-#if os(macOS)
-        if #available(macOS 26.0, *) {
-            if isProminent {
-                self.buttonStyle(GlassProminentButtonStyle())
-            } else {
-                self.buttonStyle(GlassButtonStyle())
-            }
-        } else {
-            self.buttonStyle(.bordered)
-        }
-#else
-        self
-#endif
-    }
 }
 
 #if canImport(UIKit)
