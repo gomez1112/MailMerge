@@ -7,7 +7,7 @@ extension OnboardingPage {
     static var mailMergePages: [OnboardingPage] {
         [
             OnboardingPage(
-                title: "Welcome to Mail Merge",
+                title: "Welcome to Mergeform",
                 description: "Turn any DOCX template and Excel spreadsheet into a batch of personalized PDF documents — in seconds.",
                 systemImage: "doc.on.doc.fill",
                 backgroundColor: .clear,
@@ -15,14 +15,14 @@ extension OnboardingPage {
             ),
             OnboardingPage(
                 title: "Start with a Template",
-                description: "Pick any DOCX file as your template. Mail Merge automatically detects your merge fields — supports {{Field}}, <<Field>>, ${Field}, and [[Field]] formats.",
+                description: "Pick any DOCX file as your template. Mergeform automatically detects your merge fields — supports {{Field}}, <<Field>>, ${Field}, and [[Field]] formats.",
                 systemImage: "doc.richtext.fill",
                 backgroundColor: .clear,
                 iconColor: .accentColor
             ),
             OnboardingPage(
                 title: "Connect Your Data",
-                description: "Import an Excel spreadsheet and choose the sheet to use. Mail Merge reads your column headers and shows you a live data preview.",
+                description: "Import an Excel spreadsheet and choose the sheet to use. Mergeform reads your column headers and shows you a live data preview.",
                 systemImage: "tablecells.fill",
                 backgroundColor: .clear,
                 iconColor: .accentColor
@@ -36,7 +36,7 @@ extension OnboardingPage {
             ),
             OnboardingPage(
                 title: "Preview Before You Merge",
-                description: "Step through individual records and see a live PDF preview before running the full merge. When you're ready, Mail Merge generates all your documents at once.",
+                description: "Step through individual records and see a live PDF preview before running the full merge. When you're ready, Mergeform generates all your documents at once.",
                 systemImage: "play.circle.fill",
                 backgroundColor: .clear,
                 iconColor: .accentColor

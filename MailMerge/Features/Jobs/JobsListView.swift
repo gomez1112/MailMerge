@@ -251,7 +251,7 @@ struct ContentView: View {
             return
         }
         let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
-        let job = MailMergeJob(name: "New Mail Merge", category: category)
+        let job = MailMergeJob(name: "New Mergeform", category: category)
         modelContext.insert(job)
         navigationPath = [job.id]
         showingNewJobSheet = false

@@ -59,7 +59,7 @@ struct MailMergeApp: App {
         WindowGroup {
             if let container {
                 OnboardingWrapper(
-                    appName: "Mail Merge",
+                    appName: "Mergeform",
                     currentVersion: appVersion,
                     pages: OnboardingPage.mailMergePages,
                     features: FeatureItem.mailMergeFeatures,
@@ -167,10 +167,6 @@ struct AppSettingsView: View {
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
-    private var buildNumber: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-    }
-
     var body: some View {
         TabView {
             generalTab
@@ -259,11 +255,10 @@ struct AppSettingsView: View {
         Form {
             Section {
                 LabeledContent("Version", value: appVersion)
-                LabeledContent("Build", value: buildNumber)
             }
             Section {
-                LabeledContent("Developer", value: "Mail Merge App")
-                Link("Send Feedback", destination: URL(string: "mailto:feedback@example.com")!)
+                LabeledContent("Developer", value: "Gerard Gomez")
+                Link("Send Feedback", destination: URL(string: "mailto:gerardgomez11@outlook.com")!)
             }
         }
         .formStyle(.grouped)

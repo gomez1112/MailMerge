@@ -2,7 +2,7 @@ import FlexStore
 
 // MARK: - Subscription Tier
 
-/// Defines the two tiers of the Mail Merge app.
+/// Defines the two tiers of the Mergeform app.
 /// Free users can create jobs but are limited to 25 records per merge.
 /// Pro users get unlimited records, batch PDF output, and priority support.
 enum MailMergeTier: Int, SubscriptionTier, CaseIterable, Comparable {

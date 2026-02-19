@@ -387,7 +387,7 @@ private struct TemplateLibraryView: View {
         )
         #endif
         let category = uncategorizedCategory
-        let job = MailMergeJob(name: "New Mail Merge", category: category)
+        let job = MailMergeJob(name: "New Mergeform", category: category)
         job.templateBookmarkData = bookmarkData
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()
@@ -402,7 +402,7 @@ private struct TemplateLibraryView: View {
             return nil
         }
         let category = uncategorizedCategory
-        let job = MailMergeJob(name: "New Mail Merge", category: category)
+        let job = MailMergeJob(name: "New Mergeform", category: category)
         job.templateBookmarkData = item.bookmarkData
         job.templateFileName = item.fileName
         job.modifiedAt = Date()
