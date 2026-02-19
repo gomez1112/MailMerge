@@ -4,17 +4,12 @@ import PDFKit
 import SwiftUI
 import CoreText
 import CoreXLSX
-#if canImport(AppKit)
 import AppKit
+
 typealias PlatformImage = NSImage
-#elseif canImport(UIKit)
-import UIKit
-typealias PlatformImage = UIImage
-#endif
 
 actor DOCXParserService {
     func parseTemplate(bookmarkData: Data) async throws -> AttributedTemplate {
-        #if os(macOS)
         let url = try SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData)
         defer { SecurityScopedAccess.stopAccessing(url) }
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
@@ -24,9 +19,6 @@ actor DOCXParserService {
             let attributed = try NSAttributedString(url: url, options: options, documentAttributes: nil)
             return AttributedTemplate(value: attributed)
         }
-        #else
-        throw MergeError.featureUnavailable
-        #endif
     }
 
     func extractPlaceholders(from content: AttributedTemplate) async -> [String] {
@@ -47,9 +39,6 @@ actor DOCXParserService {
     }
 
     func headerImageData(bookmarkData: Data) async -> Data? {
-        #if os(iOS) || os(visionOS)
-        return nil
-        #else
         guard let url = try? SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData) else {
             return nil
         }
@@ -87,7 +76,6 @@ actor DOCXParserService {
 
         let imagePath = normalizeDOCXPath("word/" + imageTarget)
         return unzipEntry(from: url, entryPath: imagePath)
-        #endif
     }
 
     private func unzipEntry(from url: URL, entryPath: String) -> Data? {
@@ -604,7 +592,6 @@ final class PDFGeneratorService {
         }
         let pdfDocument = PDFDocument()
         for page in pages {
-#if canImport(AppKit)
             renderAttributedString(
                 page,
                 pdfDocument: pdfDocument,
@@ -613,22 +600,6 @@ final class PDFGeneratorService {
                 headerImage: headerImage,
                 headerRect: headerRect
             )
-#else
-            let data = renderAttributedStringData(
-                page,
-                pageSize: pageSize,
-                textRect: textRect,
-                headerImage: headerImage,
-                headerRect: headerRect
-            )
-            if let pageDocument = PDFDocument(data: data) {
-                for index in 0..<pageDocument.pageCount {
-                    if let pdfPage = pageDocument.page(at: index) {
-                        pdfDocument.insert(pdfPage, at: pdfDocument.pageCount)
-                    }
-                }
-            }
-#endif
         }
         guard let data = pdfDocument.dataRepresentation() else {
             throw MergeError.pdfGenerationFailed
@@ -636,7 +607,6 @@ final class PDFGeneratorService {
         return data
     }
 
-    #if canImport(AppKit)
     private func renderAttributedString(
         _ attributedString: NSAttributedString,
         pdfDocument: PDFDocument,
@@ -680,48 +650,6 @@ final class PDFGeneratorService {
             glyphIndex = NSMaxRange(glyphRange)
         }
     }
-    #else
-    private func renderAttributedStringData(
-        _ attributedString: NSAttributedString,
-        pageSize: CGSize,
-        textRect: CGRect,
-        headerImage: PlatformImage?,
-        headerRect: CGRect?
-    ) -> Data {
-        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize))
-        return renderer.pdfData { context in
-            let textStorage = NSTextStorage(attributedString: attributedString)
-            let layoutManager = NSLayoutManager()
-            textStorage.addLayoutManager(layoutManager)
-
-            var glyphIndex = 0
-            var isFirstPage = true
-            while glyphIndex < layoutManager.numberOfGlyphs {
-                if isFirstPage {
-                    isFirstPage = false
-                } else {
-                    context.beginPage()
-                }
-
-                if let headerImage, let headerRect {
-                    headerImage.draw(in: headerRect)
-                }
-
-                let textContainer = NSTextContainer(size: textRect.size)
-                textContainer.lineFragmentPadding = 0
-                layoutManager.addTextContainer(textContainer)
-
-                let glyphRange = layoutManager.glyphRange(for: textContainer)
-                if glyphRange.length == 0 { break }
-                let drawOrigin = CGPoint(x: textRect.minX, y: textRect.minY)
-                layoutManager.drawBackground(forGlyphRange: glyphRange, at: drawOrigin)
-                layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: drawOrigin)
-
-                glyphIndex = NSMaxRange(glyphRange)
-            }
-        }
-    }
-    #endif
 
     private func headerFrame(for image: PlatformImage, pageSize: CGSize, margins: EdgeInsets) -> CGRect {
         let maxWidth = pageSize.width - margins.leading - margins.trailing
@@ -736,7 +664,6 @@ final class PDFGeneratorService {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 }
-#if canImport(AppKit)
 private final class PDFTextPageView: NSView {
     private let layoutManager: NSLayoutManager
     private let textContainer: NSTextContainer
@@ -778,7 +705,6 @@ private final class PDFTextPageView: NSView {
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: textOrigin)
     }
 }
-#endif
 
 final class MergeEngine {
     private let docxParser: DOCXParserService
@@ -851,7 +777,6 @@ final class MergeEngine {
         let start = Date()
         
         // Prevent system sleep/app nap during long-running merge
-        #if os(macOS)
         let activity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "Performing mail merge operation"
@@ -859,7 +784,6 @@ final class MergeEngine {
         defer {
             ProcessInfo.processInfo.endActivity(activity)
         }
-        #endif
         
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
@@ -1258,7 +1182,6 @@ extension EnvironmentValues {
 enum SecurityScopedAccess {
     nonisolated static func startAccessing(bookmarkData: Data) throws -> URL {
         var isStale = false
-        #if os(macOS)
         let url = try URL(
             resolvingBookmarkData: bookmarkData,
             options: .withSecurityScope,
@@ -1272,23 +1195,9 @@ enum SecurityScopedAccess {
             throw MergeError.securityScopeUnavailable
         }
         return url
-        #else
-        let url = try URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        )
-        if isStale {
-            throw MergeError.staleBookmark
-        }
-        return url
-        #endif
     }
 
     nonisolated static func stopAccessing(_ url: URL) {
-        #if os(macOS)
         url.stopAccessingSecurityScopedResource()
-        #endif
     }
 }

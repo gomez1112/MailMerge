@@ -198,6 +198,7 @@ private struct MappingRow: View {
     let availableColumns: [String]
 
     var body: some View {
+        let columns = resolvedColumns
         HStack(spacing: 0) {
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11))
@@ -217,7 +218,7 @@ private struct MappingRow: View {
 
             Picker("Column", selection: $mapping.columnName) {
                 Text("Unmapped").tag(String?.none)
-                ForEach(availableColumns, id: \.self) { column in
+                ForEach(columns, id: \.self) { column in
                     Text(column).tag(Optional(column))
                 }
             }
@@ -250,5 +251,12 @@ private struct MappingRow: View {
             .frame(width: 70, alignment: .center)
         }
         .padding(.vertical, 8)
+    }
+
+    private var resolvedColumns: [String] {
+        guard let selected = mapping.columnName, !availableColumns.contains(selected) else {
+            return availableColumns
+        }
+        return availableColumns + [selected]
     }
 }

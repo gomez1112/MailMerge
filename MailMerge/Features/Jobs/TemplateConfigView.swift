@@ -166,15 +166,11 @@ struct TemplateConfigView: View {
         guard isValidDocxURL(url) else {
             throw MergeError.invalidTemplate
         }
-        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
         defer { url.stopAccessingSecurityScopedResource() }
         let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-        #else
-        let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
-        #endif
         job.templateBookmarkData = bookmarkData
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()

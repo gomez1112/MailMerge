@@ -36,6 +36,7 @@ struct ContentView: View {
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
     @State private var isStoreReady = false
+    @State private var selectedJobID: UUID?
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
     @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
@@ -49,29 +50,11 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            List {
-                ForEach(categories) { category in
-                    categorySection(for: category)
-                }
-            }
+            jobsList
             .listStyle(.inset)
             .navigationTitle("Jobs")
             .searchable(text: $searchText, prompt: "Search Jobs")
             .toolbar {
-                #if os(iOS)
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Menu {
-                        Button(action: createJob) {
-                            Label("New Job", systemImage: "plus")
-                        }
-                        Button("Manage Categories") {
-                            showingCategoryManager = true
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-                #else
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: createJob) {
                         Label("New Job", systemImage: "plus")
@@ -80,7 +63,6 @@ struct ContentView: View {
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Manage Categories") { showingCategoryManager = true }
                 }
-#endif
             }
             .navigationDestination(for: UUID.self) { jobID in
                 if let job = jobs.first(where: { $0.id == jobID }) {
@@ -159,27 +141,42 @@ struct ContentView: View {
         .onAppear(perform: scheduleStoreReadyCheck)
         .onAppear(perform: cacheSubscriptionTier)
         .onAppear(perform: restoreNavigationPath)
-        .onChange(of: navigationPath) { _, newPath in persistNavigationPath(newPath) }
-        .onChange(of: store.subscriptionTier) { _, _ in
-            isStoreReady = true
-            cacheSubscriptionTier()
-        }
+            .onChange(of: navigationPath) { _, newPath in
+                persistNavigationPath(newPath)
+                if let last = newPath.last {
+                    selectedJobID = last
+                }
+            }
+            .onChange(of: selectedJobID) { _, newValue in
+                guard let newValue else { return }
+                if navigationPath.last != newValue {
+                    navigationPath = [newValue]
+                }
+            }
+            .onChange(of: store.subscriptionTier) { _, _ in
+                isStoreReady = true
+                cacheSubscriptionTier()
+            }
         .onReceive(NotificationCenter.default.publisher(for: .createNewJob)) { _ in createJob() }
-        .focusedSceneValue(\.selectedJobID, navigationPath.last)
         .focusedSceneValue(\.deleteJobAction, focusedDeleteAction)
         .focusedSceneValue(\.renameJobAction, focusedRenameAction)
     }
 
     private var focusedDeleteAction: (() -> Void)? {
-        guard let id = navigationPath.last,
+        guard let id = focusedJobID,
               let job = jobs.first(where: { $0.id == id }) else { return nil }
         return { deleteJob(job) }
     }
 
     private var focusedRenameAction: (() -> Void)? {
-        guard let id = navigationPath.last,
+        guard let id = focusedJobID,
               let job = jobs.first(where: { $0.id == id }) else { return nil }
         return { beginRename(job) }
+    }
+
+    private var focusedJobID: UUID? {
+        if let id = navigationPath.last { return id }
+        return selectedJobID
     }
 
     private var emptyCategory: some View {
@@ -212,14 +209,12 @@ struct ContentView: View {
                 emptyCategory
             } else {
                 ForEach(categoryJobs) { job in
-                    NavigationLink(value: job.id) {
-                        JobRowView(job: job)
-                    }
-                    .badge(jobBadge(job))
-                    .contextMenu {
-                        Button("Rename") { beginRename(job) }
-                        Button("Delete", role: .destructive) { deleteJob(job) }
-                    }
+                    jobRow(for: job)
+                        .badge(jobBadge(job))
+                        .contextMenu {
+                            Button("Rename") { beginRename(job) }
+                            Button("Delete", role: .destructive) { deleteJob(job) }
+                        }
                 }
                 .onDelete { offsets in
                     deleteJobs(offsets: offsets, in: categoryJobs)
@@ -236,6 +231,14 @@ struct ContentView: View {
 
     private func persistNavigationPath(_ path: [UUID]) {
         navigationPathData = (try? JSONEncoder().encode(path)) ?? Data()
+    }
+
+    private var jobsList: some View {
+        List(selection: $selectedJobID) {
+            ForEach(categories) { category in
+                categorySection(for: category)
+            }
+        }
     }
 
     private func createJob() {
@@ -267,12 +270,14 @@ struct ContentView: View {
             let job = source[index]
             modelContext.delete(job)
             navigationPath.removeAll(where: { $0 == job.id })
+            if selectedJobID == job.id { selectedJobID = nil }
         }
     }
 
     private func deleteJob(_ job: MailMergeJob) {
         modelContext.delete(job)
         navigationPath.removeAll(where: { $0 == job.id })
+        if selectedJobID == job.id { selectedJobID = nil }
     }
 
     private func ensureDefaultCategoriesIfNeeded() {
@@ -408,6 +413,12 @@ struct ContentView: View {
         jobToRename?.name = trimmed
         showingJobRename = false
         jobToRename = nil
+    }
+
+    private func jobRow(for job: MailMergeJob) -> some View {
+        JobRowView(job: job)
+            .tag(job.id)
+            .contentShape(Rectangle())
     }
 }
 

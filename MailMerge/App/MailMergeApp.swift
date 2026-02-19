@@ -2,9 +2,7 @@ import SwiftUI
 import SwiftData
 import OnboardingKit
 import FlexStore
-#if canImport(AppKit)
 import AppKit
-#endif
 
 // MARK: - Notification Names
 
@@ -15,7 +13,6 @@ extension Notification.Name {
 // MARK: - Focused Values
 
 extension FocusedValues {
-    @Entry var selectedJobID: UUID? = nil
     @Entry var deleteJobAction: (() -> Void)? = nil
     @Entry var renameJobAction: (() -> Void)? = nil
 }
@@ -68,9 +65,7 @@ struct MailMergeApp: App {
                     MainTabView()
                         .modelContainer(container)
                         .environment(\.services, ServiceContainer.shared)
-#if os(macOS)
                         .frame(minWidth: 1200, idealWidth: 1400, maxWidth: 1800, minHeight: 740, idealHeight: 840)
-#endif
                         .attachStoreKit(
                             manager: store,
                             groupID: MailMergeProductIDs.subscriptionGroupID,
@@ -83,18 +78,13 @@ struct MailMergeApp: App {
                 } description: {
                     Text("The app couldn't open its data store. Please restart the app or contact support.")
                 } actions: {
-#if os(macOS)
                     Button("Quit") {
                         NSApplication.shared.terminate(nil)
                     }
-#endif
                 }
-#if os(macOS)
                 .frame(minWidth: 680, idealWidth: 820, minHeight: 420, idealHeight: 520)
-#endif
             }
         }
-#if os(macOS)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
         .commands {
@@ -108,14 +98,11 @@ struct MailMergeApp: App {
             }
             MailMergeCommands()
         }
-#endif
 
-#if os(macOS)
         Settings {
             AppSettingsView()
                 .environment(store)
         }
-#endif
     }
 
     private static func storeURL() -> URL {
@@ -133,7 +120,6 @@ struct MailMergeApp: App {
 struct MailMergeCommands: Commands {
     @FocusedValue(\.deleteJobAction) private var deleteJobAction: (() -> Void)?
     @FocusedValue(\.renameJobAction) private var renameJobAction: (() -> Void)?
-    @FocusedValue(\.selectedJobID) private var selectedJobID: UUID?
 
     var body: some Commands {
         CommandMenu("Job") {
@@ -141,7 +127,7 @@ struct MailMergeCommands: Commands {
                 renameJobAction?()
             }
             .keyboardShortcut("r", modifiers: .command)
-            .disabled(selectedJobID == nil)
+            .disabled(renameJobAction == nil)
 
             Divider()
 
@@ -149,7 +135,7 @@ struct MailMergeCommands: Commands {
                 deleteJobAction?()
             }
             .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(selectedJobID == nil)
+            .disabled(deleteJobAction == nil)
         }
     }
 }

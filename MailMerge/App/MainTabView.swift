@@ -2,9 +2,7 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import FlexStore
-#if canImport(AppKit)
 import AppKit
-#endif
 
 struct MainTabView: View {
     @State private var selection: SidebarDestination = .jobs
@@ -207,9 +205,6 @@ private struct TemplateLibraryView: View {
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
     @State private var isStoreReady = false
-#if os(iOS)
-    @State private var shareItem: ShareItem?
-#endif
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
     @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
@@ -274,11 +269,6 @@ private struct TemplateLibraryView: View {
                         GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 18)
                     ], spacing: 18) {
                         ForEach(templateItems) { item in
-#if os(macOS)
-                            let revealTitle = "Reveal"
-#else
-                            let revealTitle = "Share"
-#endif
                             TemplateCard(
                                 item: item,
                                 onUse: {
@@ -286,7 +276,7 @@ private struct TemplateLibraryView: View {
                                         onOpenJobs(jobID)
                                     }
                                 },
-                                revealTitle: revealTitle,
+                                revealTitle: "Reveal",
                                 onReveal: {
                                     revealTemplate(item)
                                 }
@@ -334,11 +324,6 @@ private struct TemplateLibraryView: View {
             isStoreReady = true
             cacheSubscriptionTier()
         }
-#if os(iOS)
-        .sheet(item: $shareItem) { item in
-            ShareSheet(url: item.url)
-        }
-#endif
     }
 
     private var templateEmptyState: some View {
@@ -369,7 +354,6 @@ private struct TemplateLibraryView: View {
             showLimitAlertAndPaywall()
             return nil
         }
-        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
@@ -379,13 +363,6 @@ private struct TemplateLibraryView: View {
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
-        #else
-        let bookmarkData = try url.bookmarkData(
-            options: .minimalBookmark,
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-        #endif
         let category = uncategorizedCategory
         let job = MailMergeJob(name: "New Mergeform", category: category)
         job.templateBookmarkData = bookmarkData
@@ -414,11 +391,7 @@ private struct TemplateLibraryView: View {
     private func revealTemplate(_ item: TemplateItem) {
         guard let url = try? SecurityScopedAccess.startAccessing(bookmarkData: item.bookmarkData) else { return }
         defer { SecurityScopedAccess.stopAccessing(url) }
-#if os(macOS)
         NSWorkspace.shared.activateFileViewerSelecting([url])
-#else
-        shareItem = ShareItem(url: url)
-#endif
     }
 
     private var uncategorizedCategory: Category? {
@@ -548,13 +521,6 @@ private struct TemplateCard: View {
         .animation(.spring(duration: 0.2), value: isHovering)
     }
 }
-
-#if os(iOS)
-private struct ShareItem: Identifiable {
-    let id = UUID()
-    let url: URL
-}
-#endif
 
 // MARK: - Data Models
 

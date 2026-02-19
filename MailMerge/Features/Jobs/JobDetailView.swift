@@ -5,12 +5,15 @@ struct JobDetailView: View {
     @Environment(\.services) private var services
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedStep: MergeStep = .template
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var retryAction: (() -> Void)?
     @State private var initialSnapshot: JobSnapshot?
     @State private var isRestoring = false
+    @State private var showingRenameSheet = false
+    @State private var renameText = ""
     @Bindable var job: MailMergeJob
 
     var body: some View {
@@ -21,6 +24,8 @@ struct JobDetailView: View {
             .onChange(of: job.selectedSheetName) { _, _ in updateStatus() }
             .onChange(of: job.outputFolderBookmarkData) { _, _ in updateStatus() }
             .onChange(of: job.fieldMappings.count) { _, _ in updateStatus() }
+            .focusedSceneValue(\.deleteJobAction, { deleteJob() })
+            .focusedSceneValue(\.renameJobAction, { beginRename() })
     }
 
     private var contentWithMetadata: some View {
@@ -29,6 +34,13 @@ struct JobDetailView: View {
                 errorAlertButtons
             } message: {
                 Text(errorMessage)
+            }
+            .alert("Rename Job", isPresented: $showingRenameSheet) {
+                TextField("Job name", text: $renameText)
+                Button("Cancel", role: .cancel) { }
+                Button("Save") { saveRename(renameText) }
+            } message: {
+                Text("Enter a new name for this job")
             }
     }
 
@@ -161,7 +173,6 @@ struct JobDetailView: View {
             .font(.system(size: 13, weight: .semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
-#if os(macOS)
         if #available(macOS 26.0, *) {
             Button {
                 withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
@@ -182,16 +193,6 @@ struct JobDetailView: View {
             .disabled(!job.isConfigured)
             .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
         }
-#else
-        Button {
-            withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
-        } label: {
-            label
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
-        .disabled(!job.isConfigured)
-#endif
     }
 
     // MARK: - Step Content
@@ -356,6 +357,25 @@ struct JobDetailView: View {
             && job.outputFolderBookmarkData == nil
         let isUntouched = job.createdAt == job.modifiedAt
         return hasNoConfiguration && isUntouched
+    }
+    
+    // MARK: - Menu Actions
+    
+    private func deleteJob() {
+        modelContext.delete(job)
+        dismiss()
+    }
+    
+    private func beginRename() {
+        renameText = job.name
+        showingRenameSheet = true
+    }
+    
+    private func saveRename(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        job.name = trimmed
+        showingRenameSheet = false
     }
 }
 

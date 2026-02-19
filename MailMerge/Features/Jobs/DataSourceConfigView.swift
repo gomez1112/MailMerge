@@ -215,15 +215,11 @@ struct DataSourceConfigView: View {
         guard isValidXlsxURL(url) else {
             throw MergeError.invalidSpreadsheet
         }
-        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
         defer { url.stopAccessingSecurityScopedResource() }
         let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-        #else
-        let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
-        #endif
         job.dataSourceBookmarkData = bookmarkData
         job.dataSourceFileName = url.lastPathComponent
         job.availableSheets = []

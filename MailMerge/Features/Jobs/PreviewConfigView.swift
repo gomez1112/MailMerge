@@ -1,10 +1,5 @@
 import SwiftUI
-#if canImport(MessageUI)
-import MessageUI
-#endif
-#if canImport(AppKit)
 import AppKit
-#endif
 
 struct PreviewConfigView: View {
     @Environment(\.services) private var services
@@ -22,8 +17,6 @@ struct PreviewConfigView: View {
     @State private var estimatedTimeRemaining: TimeInterval?
     @State private var mergeResult: MergeResult?
     @State private var isMerging = false
-    @State private var showingEmailComposer = false
-    @State private var emailAttachment: EmailAttachment?
     @State private var showingEmailError = false
     @State private var emailErrorMessage = ""
     @State private var emailRecipient = ""
@@ -32,10 +25,6 @@ struct PreviewConfigView: View {
     @State private var sendAfterMerge = false
     @State private var mergeProgressTracker: Progress?
     @State private var mergeTask: Task<Void, Never>?
-#if canImport(UIKit)
-    @State private var showingShareSheet = false
-    @State private var shareItems: [Any] = []
-#endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -99,23 +88,6 @@ struct PreviewConfigView: View {
         } message: {
             Text(emailErrorMessage)
         }
-#if canImport(MessageUI)
-        .sheet(isPresented: $showingEmailComposer) {
-            if let emailAttachment {
-                MailComposeView(
-                    attachment: emailAttachment,
-                    recipient: emailRecipient,
-                    subject: emailSubject,
-                    body: emailBody
-                )
-            }
-        }
-#endif
-#if canImport(UIKit)
-        .sheet(isPresented: $showingShareSheet) {
-            ShareSheet(items: shareItems)
-        }
-#endif
     }
 
     // MARK: - Preview Pane
@@ -402,7 +374,6 @@ struct PreviewConfigView: View {
                     isMerging = false
                     mergeProgressTracker = nil
                     mergeTask = nil
-                    emailAttachment = makeEmailAttachment(from: result)
                     if sendAfterMerge {
                         emailMergeResult(result)
                     }
@@ -456,15 +427,6 @@ struct PreviewConfigView: View {
             showingEmailError = true
             return
         }
-#if canImport(MessageUI)
-        guard MFMailComposeViewController.canSendMail() else {
-            shareItems = [emailSubject, emailBody, attachment.url]
-            showingShareSheet = true
-            return
-        }
-        emailAttachment = attachment
-        showingEmailComposer = true
-#elseif canImport(AppKit)
         let service = NSSharingService(named: .composeEmail)
         service?.recipients = emailRecipient.isEmpty ? [] : [emailRecipient]
         service?.subject = emailSubject
@@ -473,10 +435,6 @@ struct PreviewConfigView: View {
             emailErrorMessage = "No email sharing service is available."
             showingEmailError = true
         }
-#else
-        emailErrorMessage = "Email is not supported on this platform."
-        showingEmailError = true
-#endif
     }
 }
 
@@ -626,42 +584,3 @@ private struct MergeProgressView: View {
         }
     }
 }
-
-#if canImport(MessageUI)
-private struct MailComposeView: UIViewControllerRepresentable {
-    let attachment: EmailAttachment
-    let recipient: String
-    let subject: String
-    let body: String
-
-    func makeUIViewController(context: Context) -> MFMailComposeViewController {
-        let controller = MFMailComposeViewController()
-        controller.mailComposeDelegate = context.coordinator
-        controller.setSubject(subject)
-        if !recipient.isEmpty {
-            controller.setToRecipients([recipient])
-        }
-        controller.setMessageBody(body, isHTML: false)
-        if let data = try? Data(contentsOf: attachment.url) {
-            controller.addAttachmentData(data, mimeType: attachment.mimeType, fileName: attachment.filename)
-        }
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
-        func mailComposeController(
-            _ controller: MFMailComposeViewController,
-            didFinishWith result: MFMailComposeResult,
-            error: Error?
-        ) {
-            controller.dismiss(animated: true)
-        }
-    }
-}
-#endif
