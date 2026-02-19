@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var hasEnsuredDefaults = false
     @State private var showingNewJobSheet = false
     @State private var newJobCategoryID: UUID?
+    @State private var newJobName = ""
 
     @State private var showingCategoryEditor = false
     @State private var categoryEditorMode: CategoryEditorMode = .add
@@ -101,6 +102,7 @@ struct ContentView: View {
                 NewJobCategoryPickerView(
                     categories: categories,
                     selectedCategoryID: $newJobCategoryID,
+                    jobName: $newJobName,
                     onCreate: confirmCreateJob
                 )
             }
@@ -242,6 +244,7 @@ struct ContentView: View {
             return
         }
         newJobCategoryID = (uncategorizedCategory ?? categories.first)?.id
+        newJobName = ""
         showingNewJobSheet = true
     }
 
@@ -251,7 +254,8 @@ struct ContentView: View {
             return
         }
         let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
-        let job = MailMergeJob(name: "New Mergeform", category: category)
+        let jobName = newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Mergeform" : newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let job = MailMergeJob(name: jobName, category: category)
         modelContext.insert(job)
         navigationPath = [job.id]
         showingNewJobSheet = false
@@ -723,6 +727,7 @@ private struct NewJobCategoryPickerView: View {
     @Environment(\.dismiss) private var dismiss
     let categories: [Category]
     @Binding var selectedCategoryID: UUID?
+    @Binding var jobName: String
     let onCreate: () -> Void
 
     var body: some View {
@@ -730,44 +735,57 @@ private struct NewJobCategoryPickerView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("New Job")
                     .font(.title3.bold())
-                Text("Choose a category for your mail merge job.")
+                Text("Name your job and choose a category.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 6) {
-                ForEach(categories) { category in
-                    let isSelected = selectedCategoryID == category.id
-                    Button {
-                        selectedCategoryID = category.id
-                    } label: {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(CategoryColorOption.color(for: category.colorName).opacity(0.15))
-                                Image(systemName: category.systemImageName)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(CategoryColorOption.color(for: category.colorName))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Name")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("Job name (optional)", text: $jobName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Category")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                VStack(spacing: 6) {
+                    ForEach(categories) { category in
+                        let isSelected = selectedCategoryID == category.id
+                        Button {
+                            selectedCategoryID = category.id
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(CategoryColorOption.color(for: category.colorName).opacity(0.15))
+                                    Image(systemName: category.systemImageName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(CategoryColorOption.color(for: category.colorName))
+                                }
+                                .frame(width: 30, height: 30)
+                                Text(category.name)
+                                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if isSelected {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.mergeformBlue)
+                                }
                             }
-                            .frame(width: 30, height: 30)
-                            Text(category.name)
-                                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if isSelected {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.mergeformBlue)
-                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(isSelected ? Color.mergeformBlue.opacity(0.08) : Color.primary.opacity(0.04))
+                            )
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(isSelected ? Color.mergeformBlue.opacity(0.08) : Color.primary.opacity(0.04))
-                        )
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
 

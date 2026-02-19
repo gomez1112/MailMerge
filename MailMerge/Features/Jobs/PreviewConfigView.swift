@@ -140,7 +140,7 @@ struct PreviewConfigView: View {
 
                 if let previewData {
                     PDFPreviewView(data: previewData)
-                        .frame(minHeight: 380)
+                        .frame(minHeight: 550)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -150,7 +150,7 @@ struct PreviewConfigView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(Color.primary.opacity(0.03))
-                            .frame(minHeight: 380)
+                            .frame(minHeight: 550)
                         VStack(spacing: 12) {
                             Image(systemName: "doc.richtext")
                                 .font(.system(size: 36))

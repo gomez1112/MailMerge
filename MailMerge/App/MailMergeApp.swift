@@ -69,7 +69,7 @@ struct MailMergeApp: App {
                         .modelContainer(container)
                         .environment(\.services, ServiceContainer.shared)
 #if os(macOS)
-                        .frame(minWidth: 1060, idealWidth: 1300, maxWidth: 1600, minHeight: 740, idealHeight: 840)
+                        .frame(minWidth: 1200, idealWidth: 1400, maxWidth: 1800, minHeight: 740, idealHeight: 840)
 #endif
                         .attachStoreKit(
                             manager: store,
