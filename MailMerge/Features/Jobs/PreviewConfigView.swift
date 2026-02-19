@@ -18,6 +18,8 @@ struct PreviewConfigView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var mergeProgress: (current: Int, total: Int) = (0, 0)
+    @State private var mergeStartTime: Date?
+    @State private var estimatedTimeRemaining: TimeInterval?
     @State private var mergeResult: MergeResult?
     @State private var isMerging = false
     @State private var showingEmailComposer = false
@@ -28,6 +30,8 @@ struct PreviewConfigView: View {
     @State private var emailSubject = "Merged Documents"
     @State private var emailBody = "Hi,\n\nAttached are the merged documents.\n\nThanks!"
     @State private var sendAfterMerge = false
+    @State private var mergeProgressTracker: Progress?
+    @State private var mergeTask: Task<Void, Never>?
 #if canImport(UIKit)
     @State private var showingShareSheet = false
     @State private var shareItems: [Any] = []
@@ -230,48 +234,57 @@ struct PreviewConfigView: View {
                         )
                 }
 
-                if mergeProgress.total > 0 {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Merging…")
-                                .font(.system(size: 11))
+                if isMerging && mergeProgress.total == 0 {
+                    // Loading state before first progress update
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading data…")
+                                .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(mergeProgress.current) / \(mergeProgress.total)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
                         }
-                        ProgressView(
-                            value: Double(mergeProgress.current),
-                            total: Double(mergeProgress.total)
-                        )
-                        .progressViewStyle(.linear)
-                        .tint(Color.mergeformBlue)
                     }
+                    .padding(.vertical, 8)
+                }
+                
+                if mergeProgress.total > 0 {
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    MergeProgressView(
+                        current: mergeProgress.current,
+                        total: mergeProgress.total,
+                        startTime: mergeStartTime,
+                        estimatedTimeRemaining: estimatedTimeRemaining
+                    )
                 }
 
                 if let mergeResult {
-                    VStack(alignment: .leading, spacing: 4) {
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
-                                .font(.system(size: 13))
+                                .font(.system(size: 14))
                             Text("Merge complete")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 13, weight: .medium))
                         }
                         Text("\(mergeResult.recordCount) records in \(mergeResult.duration, format: .number.precision(.fractionLength(1)))s")
-                            .font(.system(size: 11))
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 2)
+                    .padding(.vertical, 4)
+                    
                     Button {
                         emailMergeResult(mergeResult)
                     } label: {
                         Label("Email Output", systemImage: "paperplane.fill")
                             .font(.system(size: 12, weight: .semibold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 8)
                     }
                     .buttonStyle(.bordered)
                     .disabled(mergeResult.attachmentURL == nil)
@@ -292,25 +305,36 @@ struct PreviewConfigView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
 
-                Button {
-                    startMerge()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isMerging {
-                            ProgressView().controlSize(.small)
-                                .tint(.white)
-                        } else {
-                            Image(systemName: "play.fill")
+                if isMerging {
+                    Button {
+                        cancelMerge()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "xmark.circle.fill")
+                            Text("Cancel Merge")
+                                .font(.system(size: 13, weight: .semibold))
                         }
-                        Text(isMerging ? "Merging…" : "Start Merge")
-                            .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                } else {
+                    Button {
+                        startMerge()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.fill")
+                            Text("Start Merge")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
+                    .disabled(!job.isConfigured)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
-                .disabled(!job.isConfigured || isMerging)
             }
         }
     }
@@ -347,33 +371,73 @@ struct PreviewConfigView: View {
         mergeProgress = (0, 0)
         mergeResult = nil
         isMerging = true
-        Task {
+        mergeStartTime = Date()
+        estimatedTimeRemaining = nil
+        
+        // Create NSProgress for cancellation support
+        let progressTracker = Progress(totalUnitCount: 100)
+        progressTracker.localizedDescription = "Merging documents"
+        mergeProgressTracker = progressTracker
+        
+        let task = Task {
             do {
                 let result = try await services.mergeEngine.performMerge(
                     job: job,
-                    singleDocument: job.combineIntoSinglePDF
-                ) { current, total in
-                    mergeProgress = (current, total)
-                }
+                    singleDocument: job.combineIntoSinglePDF,
+                    progress: { current, total in
+                        mergeProgress = (current, total)
+                        
+                        // Calculate estimated time remaining
+                        if let startTime = mergeStartTime, current > 0 {
+                            let elapsed = Date().timeIntervalSince(startTime)
+                            let rate = Double(current) / elapsed
+                            let remaining = Double(total - current) / rate
+                            estimatedTimeRemaining = remaining
+                        }
+                    },
+                    nsProgress: progressTracker
+                )
                 await MainActor.run {
                     mergeResult = result
                     isMerging = false
+                    mergeProgressTracker = nil
+                    mergeTask = nil
                     emailAttachment = makeEmailAttachment(from: result)
                     if sendAfterMerge {
                         emailMergeResult(result)
                     }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    errorMessage = "Merge operation was cancelled"
+                    showingErrorAlert = true
+                    isMerging = false
+                    mergeProgressTracker = nil
+                    mergeTask = nil
                 }
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showingErrorAlert = true
                     isMerging = false
+                    mergeProgressTracker = nil
+                    mergeTask = nil
                 }
             }
         }
+        mergeTask = task
     }
 
     private var hasPreview: Bool { previewData != nil }
+    
+    private func cancelMerge() {
+        mergeProgressTracker?.cancel()
+        mergeTask?.cancel()
+        mergeProgress = (0, 0)
+        isMerging = false
+        mergeProgressTracker = nil
+        mergeTask = nil
+    }
 
     private func makeEmailAttachment(from result: MergeResult) -> EmailAttachment? {
         guard let url = result.attachmentURL else { return nil }
@@ -420,6 +484,147 @@ private struct EmailAttachment {
     let url: URL
     let filename: String
     let mimeType: String
+}
+
+// MARK: - Merge Progress View
+
+private struct MergeProgressView: View {
+    let current: Int
+    let total: Int
+    let startTime: Date?
+    let estimatedTimeRemaining: TimeInterval?
+    
+    private var percentage: Double {
+        guard total > 0 else { return 0 }
+        return Double(current) / Double(total)
+    }
+    
+    private var rowsPerSecond: Double? {
+        guard let startTime, current > 0 else { return nil }
+        let elapsed = Date().timeIntervalSince(startTime)
+        guard elapsed > 0 else { return nil }
+        return Double(current) / elapsed
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            // Circular progress centered
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 6)
+                        .frame(width: 80, height: 80)
+                    
+                    Circle()
+                        .trim(from: 0, to: percentage)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.mergeformBlue, Color.mergeformOrange.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        )
+                        .frame(width: 80, height: 80)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.spring(duration: 0.5), value: percentage)
+                    
+                    Text("\(Int(percentage * 100))%")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color.mergeformBlue)
+                        .monospacedDigit()
+                }
+                
+                VStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("\(current)")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .monospacedDigit()
+                        Text("/ \(total)")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    
+                    Text("records processed")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+                
+                if let rowsPerSecond {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gauge.with.dots.needle.67percent")
+                            .font(.system(size: 11))
+                        Text("\(Int(rowsPerSecond)) rows/sec")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(Color.mergeformOrange)
+                    .padding(.top, 4)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            
+            // Progress bar
+            VStack(spacing: 8) {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.primary.opacity(0.08))
+                            .frame(height: 8)
+                        
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.mergeformBlue, Color.mergeformOrange.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: geometry.size.width * percentage, height: 8)
+                            .animation(.spring(duration: 0.5), value: percentage)
+                    }
+                }
+                .frame(height: 8)
+                
+                HStack {
+                    if let estimatedTimeRemaining, estimatedTimeRemaining > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock.fill")
+                                .font(.system(size: 10))
+                            Text(formatTimeRemaining(estimatedTimeRemaining))
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    } else {
+                        Spacer()
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Processing…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(.vertical, 12)
+    }
+    
+    private func formatTimeRemaining(_ seconds: TimeInterval) -> String {
+        let rounded = Int(seconds.rounded())
+        if rounded < 60 {
+            return "\(rounded)s remaining"
+        } else if rounded < 3600 {
+            let minutes = rounded / 60
+            let secs = rounded % 60
+            return "\(minutes)m \(secs)s remaining"
+        } else {
+            let hours = rounded / 3600
+            let minutes = (rounded % 3600) / 60
+            return "\(hours)h \(minutes)m remaining"
+        }
+    }
 }
 
 #if canImport(MessageUI)

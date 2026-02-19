@@ -507,6 +507,7 @@ actor ExcelParserService {
     }
 }
 
+@MainActor
 final class PDFGeneratorService {
     func generatePDF(
         from attributedString: NSAttributedString,
@@ -529,6 +530,50 @@ final class PDFGeneratorService {
             margins: margins,
             headerImageData: headerImageData
         )
+    }
+    
+    /// Async version of generatePDF that yields cooperatively during processing
+    func generatePDFAsync(
+        from attributedString: NSAttributedString,
+        pageSize: CGSize,
+        margins: EdgeInsets,
+        headerImageData: Data?
+    ) async throws -> Data {
+        // Yield before starting to allow UI to update
+        await Task.yield()
+        
+        let data = try generatePDF(
+            from: attributedString,
+            pageSize: pageSize,
+            margins: margins,
+            headerImageData: headerImageData
+        )
+        
+        // Yield after completion to allow UI to process the result
+        await Task.yield()
+        
+        return data
+    }
+    
+    /// Async version for multiple pages with cooperative yielding
+    func generatePDFAsync<S: Sequence>(
+        pages: S,
+        pageSize: CGSize,
+        margins: EdgeInsets,
+        headerImageData: Data?
+    ) async throws -> Data where S.Element == NSAttributedString {
+        await Task.yield()
+        
+        let data = try generatePDF(
+            pages: pages,
+            pageSize: pageSize,
+            margins: margins,
+            headerImageData: headerImageData
+        )
+        
+        await Task.yield()
+        
+        return data
     }
 
     func generatePDF<S: Sequence>(
@@ -786,23 +831,36 @@ final class MergeEngine {
         let mappingSnapshots = job.fieldMappings.map { MappingSnapshot(from: $0) }
         let rowData = buildRowData(headers: sheet.headers, row: row)
         let attributedString = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappingSnapshots)
-        let data = try await MainActor.run {
-            try pdfGenerator.generatePDF(
-                from: attributedString,
-                pageSize: CGSize(width: 612, height: 792),
-                margins: EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48),
-                headerImageData: headerImageData
-            )
-        }
+        
+        // Use async version for better UI responsiveness
+        let data = try await pdfGenerator.generatePDFAsync(
+            from: attributedString,
+            pageSize: CGSize(width: 612, height: 792),
+            margins: EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48),
+            headerImageData: headerImageData
+        )
         return (data, totalRecords)
     }
 
     func performMerge(
         job: MailMergeJob,
         singleDocument: Bool,
-        progress: @escaping @Sendable @MainActor (Int, Int) -> Void
+        progress: @escaping @Sendable @MainActor (Int, Int) -> Void,
+        nsProgress: Progress? = nil
     ) async throws -> MergeResult {
         let start = Date()
+        
+        // Prevent system sleep/app nap during long-running merge
+        #if os(macOS)
+        let activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "Performing mail merge operation"
+        )
+        defer {
+            ProcessInfo.processInfo.endActivity(activity)
+        }
+        #endif
+        
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
         }
@@ -827,6 +885,11 @@ final class MergeEngine {
             let dataRows = filteredRows(sheet.rows)
             let totalRecords = dataRows.count
             guard totalRecords > 0 else { throw MergeError.noRecords }
+            
+            // Set up NSProgress if provided
+            let progressTracker = nsProgress ?? Progress(totalUnitCount: Int64(totalRecords))
+            progressTracker.localizedDescription = "Merging documents"
+            progressTracker.localizedAdditionalDescription = "Processing 0 of \(totalRecords) records"
 
             let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
             let jobName = job.name
@@ -838,33 +901,59 @@ final class MergeEngine {
             let attachmentURL: URL?
             let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
             defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
+            
+            // Update UI every 10 records or 0.1 seconds to avoid overwhelming the main thread
+            let progressUpdateInterval = max(1, totalRecords / 100) // Update ~100 times total
+            var lastProgressUpdate = Date()
+            
             if singleDocument {
-                var index = 0
-                let pages = AnySequence<NSAttributedString> {
-                    AnyIterator {
-                        guard index < dataRows.count else { return nil }
-                        let row = dataRows[index]
-                        let rowData = self.buildRowData(headers: sheet.headers, row: row)
-                        let mergedText = self.applyMappings(
-                            templateText: templateText.value,
-                            rowData: rowData,
-                            mappings: mappings
-                        )
-                        index += 1
-                        Task { @MainActor in
-                            progress(index, totalRecords)
+                // For single document mode, we need to generate all pages at once
+                // But we can still yield between data preparation and PDF generation
+                var attributedPages: [NSAttributedString] = []
+                
+                for (index, row) in dataRows.enumerated() {
+                    // Check for cancellation
+                    if progressTracker.isCancelled {
+                        throw CancellationError()
+                    }
+                    
+                    let rowData = buildRowData(headers: sheet.headers, row: row)
+                    let mergedText = applyMappings(
+                        templateText: templateText.value,
+                        rowData: rowData,
+                        mappings: mappings
+                    )
+                    attributedPages.append(mergedText)
+                    
+                    let currentIndex = index + 1
+                    let shouldUpdate = currentIndex % progressUpdateInterval == 0 
+                        || currentIndex == totalRecords 
+                        || Date().timeIntervalSince(lastProgressUpdate) > 0.1
+                    
+                    if shouldUpdate {
+                        lastProgressUpdate = Date()
+                        await MainActor.run {
+                            progress(currentIndex, totalRecords)
+                            progressTracker.completedUnitCount = Int64(currentIndex)
+                            progressTracker.localizedAdditionalDescription = "Preparing \(currentIndex) of \(totalRecords) records"
                         }
-                        return mergedText
+                        // Yield to allow UI updates
+                        await Task.yield()
                     }
                 }
-                let data = try await MainActor.run {
-                    try pdfGenerator.generatePDF(
-                        pages: pages,
-                        pageSize: pageSize,
-                        margins: margins,
-                        headerImageData: headerImageData
-                    )
+                
+                // Generate the combined PDF with cooperative yielding
+                await MainActor.run {
+                    progressTracker.localizedAdditionalDescription = "Generating combined PDF..."
                 }
+                
+                let data = try await pdfGenerator.generatePDFAsync(
+                    pages: attributedPages,
+                    pageSize: pageSize,
+                    margins: margins,
+                    headerImageData: headerImageData
+                )
+                
                 let filename = sanitizeFileName("Merged_\(jobName)").appending(".pdf")
                 let fileURL = outputFolderURL.appending(path: filename)
                 try data.write(to: fileURL)
@@ -873,17 +962,30 @@ final class MergeEngine {
             } else {
                 var outputFiles: [URL] = []
                 var lastOutput: URL? = nil
+                var lastProgressUpdate = Date()
+                
+                // Process documents with explicit yielding to keep UI responsive
                 for (index, row) in dataRows.enumerated() {
+                    // Check for cancellation before each row
+                    if progressTracker.isCancelled {
+                        throw CancellationError()
+                    }
+                    
+                    // Yield before processing each document to keep UI responsive
+                    await Task.yield()
+                    
+                    // Prepare the data (fast, can stay on current task)
                     let rowData = buildRowData(headers: sheet.headers, row: row)
                     let attributed = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
-                    let data = try await MainActor.run {
-                        try pdfGenerator.generatePDF(
-                            from: attributed,
-                            pageSize: pageSize,
-                            margins: margins,
-                            headerImageData: headerImageData
-                        )
-                    }
+                    
+                    // Generate PDF with cooperative yielding
+                    let data = try await pdfGenerator.generatePDFAsync(
+                        from: attributed,
+                        pageSize: pageSize,
+                        margins: margins,
+                        headerImageData: headerImageData
+                    )
+                    
                     let fileName = outputFileName(
                         pattern: filePattern,
                         rowIndex: index + 1,
@@ -893,8 +995,31 @@ final class MergeEngine {
                     try data.write(to: fileURL)
                     lastOutput = fileURL
                     outputFiles.append(fileURL)
-                    await MainActor.run {
-                        progress(index + 1, totalRecords)
+                    
+                    // Update progress
+                    let currentIndex = index + 1
+                    let shouldUpdate = currentIndex % progressUpdateInterval == 0 
+                        || currentIndex == totalRecords 
+                        || Date().timeIntervalSince(lastProgressUpdate) > 0.1
+                    
+                    if shouldUpdate {
+                        lastProgressUpdate = Date()
+                        await MainActor.run {
+                            progress(currentIndex, totalRecords)
+                            progressTracker.completedUnitCount = Int64(currentIndex)
+                            progressTracker.localizedAdditionalDescription = "Processing \(currentIndex) of \(totalRecords) records"
+                        }
+                        // Explicit yield after UI update to allow rendering
+                        await Task.yield()
+                        // Add a small suspension to force RunLoop processing
+                        try? await Task.sleep(for: .milliseconds(1))
+                    } else {
+                        // Still update NSProgress without UI update, but yield periodically
+                        progressTracker.completedUnitCount = Int64(currentIndex)
+                        // Yield every few documents even when not updating UI
+                        if currentIndex % 3 == 0 {
+                            await Task.yield()
+                        }
                     }
                 }
                 outputURL = lastOutput
@@ -925,6 +1050,7 @@ final class MergeEngine {
             throw error
         }
     }
+
 
     private func applyMappings(
         templateText: NSAttributedString,
