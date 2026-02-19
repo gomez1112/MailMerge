@@ -47,6 +47,9 @@ actor DOCXParserService {
     }
 
     func headerImageData(bookmarkData: Data) async -> Data? {
+        #if os(iOS) || os(visionOS)
+        return nil
+        #else
         guard let url = try? SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData) else {
             return nil
         }
@@ -84,6 +87,7 @@ actor DOCXParserService {
 
         let imagePath = normalizeDOCXPath("word/" + imageTarget)
         return unzipEntry(from: url, entryPath: imagePath)
+        #endif
     }
 
     private func unzipEntry(from url: URL, entryPath: String) -> Data? {
@@ -239,7 +243,10 @@ actor ExcelParserService {
         styles: Styles?,
         headerName: String?
     ) -> String {
-        if let sharedStrings, let value = cell.stringValue(sharedStrings) {
+        if cell.type == .inlineStr, let inline = cell.inlineString?.text {
+            return inline
+        }
+        if cell.type == .sharedString, let sharedStrings, let value = cell.stringValue(sharedStrings) {
             if let formatted = formattedStringValue(
                 value,
                 cell: cell,
@@ -249,6 +256,9 @@ actor ExcelParserService {
                 return formatted
             }
             return normalizeNumericString(value)
+        }
+        if cell.type == .string, let rawValue = cell.value {
+            return rawValue
         }
         guard let rawValue = cell.value else { return "" }
         if let formatted = formattedCellValue(
@@ -926,7 +936,17 @@ final class MergeEngine {
             guard let columnName = mapping.columnName else { continue }
             let rawValue = rowData[columnName] ?? ""
             let transformed = mapping.transformation.apply(to: rawValue, formatString: mapping.formatString)
-            replaceAllOccurrences(in: output, placeholder: mapping.placeholderText, replacement: transformed)
+            for placeholder in placeholderVariants(for: mapping.placeholderText) {
+                replaceAllOccurrences(in: output, placeholder: placeholder, replacement: transformed)
+            }
+            for pattern in placeholderRegexVariants(for: mapping.placeholderText) {
+                replaceAllRegexOccurrences(in: output, pattern: pattern, replacement: transformed)
+            }
+        }
+        // Strip any remaining placeholder tokens (unmapped fields) so they
+        // don't appear as raw {{...}}, <<...>>, ${...}, or [[...]] in the output.
+        for pattern in ["\\{\\{.*?\\}\\}", "<<.*?>>", "\\$\\{.*?\\}", "\\[\\[.*?\\]\\]"] {
+            replaceAllRegexOccurrences(in: output, pattern: pattern, replacement: "")
         }
         return output
     }
@@ -972,6 +992,75 @@ final class MergeEngine {
             if nextLocation >= attributedString.length { break }
             searchRange = NSRange(location: nextLocation, length: attributedString.length - nextLocation)
         }
+    }
+
+    private func replaceAllRegexOccurrences(
+        in attributedString: NSMutableAttributedString,
+        pattern: String,
+        replacement: String
+    ) {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return
+        }
+        let fullRange = NSRange(location: 0, length: attributedString.length)
+        let matches = regex.matches(in: attributedString.string, range: fullRange).reversed()
+        for match in matches {
+            let range = match.range
+            guard range.location != NSNotFound else { continue }
+            let attributes = attributedString.attributes(at: range.location, effectiveRange: nil)
+            let replacementString = NSAttributedString(string: replacement, attributes: attributes)
+            attributedString.replaceCharacters(in: range, with: replacementString)
+        }
+    }
+
+    private func placeholderVariants(for placeholder: String) -> [String] {
+        let base = normalizedPlaceholder(placeholder)
+        guard !base.isEmpty else { return [] }
+        // Only include the full wrapped forms. Never match the bare field name,
+        // as it would match inside e.g. {{First Name}} replacing just "First Name"
+        // with the value and leaving orphaned {{ }} in the output.
+        var variants: [String] = [
+            "{{\(base)}}",
+            "<<\(base)>>",
+            "${\(base)}",
+            "[[\(base)]]"
+        ]
+        // If the stored placeholder already contains wrapping (e.g. stored as
+        // "{{First Name}}" from an older code path), include it too.
+        if placeholder != base {
+            variants.insert(placeholder, at: 0)
+        }
+        return variants
+    }
+
+    private func placeholderRegexVariants(for placeholder: String) -> [String] {
+        let base = normalizedPlaceholder(placeholder)
+        guard !base.isEmpty else { return [] }
+        let escaped = NSRegularExpression.escapedPattern(for: base)
+        return [
+            "\\{\\{\\s*\(escaped)\\s*\\}\\}",
+            "<<\\s*\(escaped)\\s*>>",
+            "\\$\\{\\s*\(escaped)\\s*\\}",
+            "\\[\\[\\s*\(escaped)\\s*\\]\\]"
+        ]
+    }
+
+    private func normalizedPlaceholder(_ value: String) -> String {
+        var trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wrappers: [(String, String)] = [("{{", "}}"), ("<<", ">>"), ("${", "}"), ("[[", "]]"), ("(", ")")]
+        var didStrip = true
+        while didStrip {
+            didStrip = false
+            for (open, close) in wrappers {
+                if trimmed.hasPrefix(open), trimmed.hasSuffix(close), trimmed.count >= open.count + close.count + 1 {
+                    trimmed = String(trimmed.dropFirst(open.count).dropLast(close.count))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    didStrip = true
+                    break
+                }
+            }
+        }
+        return trimmed
     }
 
     private func sanitizeFileName(_ value: String) -> String {

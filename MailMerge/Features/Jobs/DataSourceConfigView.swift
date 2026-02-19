@@ -264,8 +264,13 @@ struct DataSourceConfigView: View {
                 )
                 await MainActor.run {
                     previewData = preview
-                    job.availableColumns = preview.headers
-                    normalizeColumnMappings(using: preview.headers)
+                    let cleanedHeaders = preview.headers
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                    var seen: Set<String> = []
+                    let uniqueHeaders = cleanedHeaders.filter { seen.insert($0).inserted }
+                    job.availableColumns = uniqueHeaders
+                    normalizeColumnMappings(using: uniqueHeaders)
                     isLoadingPreview = false
                 }
             } catch {

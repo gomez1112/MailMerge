@@ -206,8 +206,11 @@ struct TemplateConfigView: View {
     }
 
     private func syncMappings(with placeholders: [String]) {
+        let cleanedPlaceholders = placeholders
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         let existing = Set(job.fieldMappings.map { $0.placeholderText })
-        let toAdd = placeholders.filter { !existing.contains($0) }
+        let toAdd = cleanedPlaceholders.filter { !existing.contains($0) }
         if !toAdd.isEmpty {
             for placeholder in toAdd {
                 let mapping = FieldMapping(placeholderText: placeholder, job: job)

@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct FieldMappingConfigView: View {
+    @Environment(\.services) private var services
     @Bindable var job: MailMergeJob
     @State private var isAutoMatching = false
+    @State private var isLoadingColumns = false
 
     private var mappedCount: Int {
         job.fieldMappings.filter { $0.isMapped }.count
@@ -35,7 +37,7 @@ struct FieldMappingConfigView: View {
                             }
                         }
                         .font(.system(size: 12))
-                        .disabled(job.availableColumns.isEmpty || isAutoMatching)
+                        .disabled(job.availableColumns.isEmpty || isAutoMatching || isLoadingColumns)
                     }
                     MappingProgressView(mappedCount: mappedCount, totalCount: job.fieldMappings.count)
                 }
@@ -73,6 +75,9 @@ struct FieldMappingConfigView: View {
             }
 
             Spacer()
+        }
+        .task(id: job.selectedSheetName) {
+            await loadColumnsIfNeeded()
         }
     }
 
@@ -117,6 +122,39 @@ struct FieldMappingConfigView: View {
             }
         }
         isAutoMatching = false
+    }
+
+    @MainActor
+    private func applyAvailableColumns(_ headers: [String]) {
+        let cleanedHeaders = headers
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var seen: Set<String> = []
+        let uniqueHeaders = cleanedHeaders.filter { seen.insert($0).inserted }
+        job.availableColumns = uniqueHeaders
+    }
+
+    private func loadColumnsIfNeeded() async {
+        guard job.availableColumns.isEmpty,
+              let bookmarkData = job.dataSourceBookmarkData,
+              let sheetName = job.selectedSheetName else {
+            return
+        }
+        isLoadingColumns = true
+        do {
+            let headers = try await services.mergeEngine.getColumnHeaders(
+                bookmarkData: bookmarkData,
+                sheetName: sheetName
+            )
+            await MainActor.run {
+                applyAvailableColumns(headers)
+                isLoadingColumns = false
+            }
+        } catch {
+            await MainActor.run {
+                isLoadingColumns = false
+            }
+        }
     }
 
     private func normalized(_ value: String) -> String {
