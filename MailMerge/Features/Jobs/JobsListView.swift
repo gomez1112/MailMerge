@@ -57,7 +57,7 @@ struct ContentView: View {
             .navigationTitle("Jobs")
             .searchable(text: $searchText, prompt: "Search Jobs")
             .toolbar {
-#if os(iOS)
+                #if os(iOS)
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
                         Button(action: createJob) {
@@ -70,7 +70,7 @@ struct ContentView: View {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
-#else
+                #else
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: createJob) {
                         Label("New Job", systemImage: "plus")
