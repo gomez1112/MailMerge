@@ -27,8 +27,13 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:Mergeform.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
       <Testables>
          <TestableReference
             skipped = "NO"
@@ -38,6 +43,17 @@
                BlueprintIdentifier = "CC8E3A872F3EC626005DDBF7"
                BuildableName = "MailMergeTests.xctest"
                BlueprintName = "MailMergeTests"
+               ReferencedContainer = "container:MailMerge.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "CC3D7B172F454DF0004D55B2"
+               BuildableName = "MergeformTests.xctest"
+               BlueprintName = "MergeformTests"
                ReferencedContainer = "container:MailMerge.xcodeproj">
             </BuildableReference>
          </TestableReference>

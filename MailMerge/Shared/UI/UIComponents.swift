@@ -1,11 +1,6 @@
 import SwiftUI
 import PDFKit
-#if canImport(AppKit)
 import AppKit
-#endif
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - Brand Colors
 
@@ -340,7 +335,6 @@ private extension View {
     @ViewBuilder
     func stepButtonBackground(isSelected: Bool) -> some View {
         if isSelected {
-#if os(macOS)
             if #available(macOS 26.0, *) {
                 self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
             } else {
@@ -349,12 +343,6 @@ private extension View {
                         .fill(Color.mergeformBlue.opacity(0.10))
                 )
             }
-#else
-            self.background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.mergeformBlue.opacity(0.10))
-            )
-#endif
         } else {
             self
         }
@@ -497,7 +485,6 @@ struct DataPreviewTable: View {
 
 // MARK: - PDF Preview View
 
-#if canImport(AppKit)
 struct PDFPreviewView: NSViewRepresentable {
     let data: Data
 
@@ -513,77 +500,20 @@ struct PDFPreviewView: NSViewRepresentable {
         nsView.document = PDFDocument(data: data)
     }
 }
-#else
-struct PDFPreviewView: UIViewRepresentable {
-    let data: Data
-
-    func makeUIView(context: Context) -> PDFView {
-        let view = PDFView()
-        view.autoScales = true
-        view.displayMode = .singlePageContinuous
-        view.backgroundColor = .clear
-        return view
-    }
-
-    func updateUIView(_ uiView: PDFView, context: Context) {
-        uiView.document = PDFDocument(data: data)
-    }
-}
-#endif
 
 // MARK: - Liquid Glass Extensions
 
 extension View {
     @ViewBuilder
     func applyLiquidGlassIfAvailable() -> some View {
-#if os(macOS)
         if #available(macOS 26.0, *) {
             self.glassEffect()
         } else {
             self
         }
-#else
-        self
-#endif
     }
 
-    @ViewBuilder
-    func applyGlassButtonStyleIfAvailable(isProminent: Bool = false) -> some View {
-#if os(macOS)
-        if #available(macOS 26.0, *) {
-            if isProminent {
-                self.buttonStyle(GlassProminentButtonStyle())
-            } else {
-                self.buttonStyle(GlassButtonStyle())
-            }
-        } else {
-            self.buttonStyle(.bordered)
-        }
-#else
-        self
-#endif
-    }
 }
-
-#if canImport(UIKit)
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    init(url: URL) {
-        self.items = [url]
-    }
-
-    init(items: [Any]) {
-        self.items = items
-    }
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-#endif
 
 // MARK: - Inline Label Row
 

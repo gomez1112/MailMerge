@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var hasEnsuredDefaults = false
     @State private var showingNewJobSheet = false
     @State private var newJobCategoryID: UUID?
+    @State private var newJobName = ""
 
     @State private var showingCategoryEditor = false
     @State private var categoryEditorMode: CategoryEditorMode = .add
@@ -35,6 +36,7 @@ struct ContentView: View {
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
     @State private var isStoreReady = false
+    @State private var selectedJobID: UUID?
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
     @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
@@ -48,29 +50,11 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            List {
-                ForEach(categories) { category in
-                    categorySection(for: category)
-                }
-            }
+            jobsList
             .listStyle(.inset)
             .navigationTitle("Jobs")
             .searchable(text: $searchText, prompt: "Search Jobs")
             .toolbar {
-#if os(iOS)
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Menu {
-                        Button(action: createJob) {
-                            Label("New Job", systemImage: "plus")
-                        }
-                        Button("Manage Categories") {
-                            showingCategoryManager = true
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-#else
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: createJob) {
                         Label("New Job", systemImage: "plus")
@@ -79,7 +63,6 @@ struct ContentView: View {
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Manage Categories") { showingCategoryManager = true }
                 }
-#endif
             }
             .navigationDestination(for: UUID.self) { jobID in
                 if let job = jobs.first(where: { $0.id == jobID }) {
@@ -101,6 +84,7 @@ struct ContentView: View {
                 NewJobCategoryPickerView(
                     categories: categories,
                     selectedCategoryID: $newJobCategoryID,
+                    jobName: $newJobName,
                     onCreate: confirmCreateJob
                 )
             }
@@ -157,27 +141,42 @@ struct ContentView: View {
         .onAppear(perform: scheduleStoreReadyCheck)
         .onAppear(perform: cacheSubscriptionTier)
         .onAppear(perform: restoreNavigationPath)
-        .onChange(of: navigationPath) { _, newPath in persistNavigationPath(newPath) }
-        .onChange(of: store.subscriptionTier) { _, _ in
-            isStoreReady = true
-            cacheSubscriptionTier()
-        }
+            .onChange(of: navigationPath) { _, newPath in
+                persistNavigationPath(newPath)
+                if let last = newPath.last {
+                    selectedJobID = last
+                }
+            }
+            .onChange(of: selectedJobID) { _, newValue in
+                guard let newValue else { return }
+                if navigationPath.last != newValue {
+                    navigationPath = [newValue]
+                }
+            }
+            .onChange(of: store.subscriptionTier) { _, _ in
+                isStoreReady = true
+                cacheSubscriptionTier()
+            }
         .onReceive(NotificationCenter.default.publisher(for: .createNewJob)) { _ in createJob() }
-        .focusedSceneValue(\.selectedJobID, navigationPath.last)
         .focusedSceneValue(\.deleteJobAction, focusedDeleteAction)
         .focusedSceneValue(\.renameJobAction, focusedRenameAction)
     }
 
     private var focusedDeleteAction: (() -> Void)? {
-        guard let id = navigationPath.last,
+        guard let id = focusedJobID,
               let job = jobs.first(where: { $0.id == id }) else { return nil }
         return { deleteJob(job) }
     }
 
     private var focusedRenameAction: (() -> Void)? {
-        guard let id = navigationPath.last,
+        guard let id = focusedJobID,
               let job = jobs.first(where: { $0.id == id }) else { return nil }
         return { beginRename(job) }
+    }
+
+    private var focusedJobID: UUID? {
+        if let id = navigationPath.last { return id }
+        return selectedJobID
     }
 
     private var emptyCategory: some View {
@@ -210,14 +209,12 @@ struct ContentView: View {
                 emptyCategory
             } else {
                 ForEach(categoryJobs) { job in
-                    NavigationLink(value: job.id) {
-                        JobRowView(job: job)
-                    }
-                    .badge(jobBadge(job))
-                    .contextMenu {
-                        Button("Rename") { beginRename(job) }
-                        Button("Delete", role: .destructive) { deleteJob(job) }
-                    }
+                    jobRow(for: job)
+                        .badge(jobBadge(job))
+                        .contextMenu {
+                            Button("Rename") { beginRename(job) }
+                            Button("Delete", role: .destructive) { deleteJob(job) }
+                        }
                 }
                 .onDelete { offsets in
                     deleteJobs(offsets: offsets, in: categoryJobs)
@@ -236,12 +233,21 @@ struct ContentView: View {
         navigationPathData = (try? JSONEncoder().encode(path)) ?? Data()
     }
 
+    private var jobsList: some View {
+        List(selection: $selectedJobID) {
+            ForEach(categories) { category in
+                categorySection(for: category)
+            }
+        }
+    }
+
     private func createJob() {
         guard canCreateJob else {
             showLimitAlertAndPaywall()
             return
         }
         newJobCategoryID = (uncategorizedCategory ?? categories.first)?.id
+        newJobName = ""
         showingNewJobSheet = true
     }
 
@@ -251,7 +257,8 @@ struct ContentView: View {
             return
         }
         let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
-        let job = MailMergeJob(name: "New Mail Merge", category: category)
+        let jobName = newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Mergeform" : newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let job = MailMergeJob(name: jobName, category: category)
         modelContext.insert(job)
         navigationPath = [job.id]
         showingNewJobSheet = false
@@ -263,12 +270,14 @@ struct ContentView: View {
             let job = source[index]
             modelContext.delete(job)
             navigationPath.removeAll(where: { $0 == job.id })
+            if selectedJobID == job.id { selectedJobID = nil }
         }
     }
 
     private func deleteJob(_ job: MailMergeJob) {
         modelContext.delete(job)
         navigationPath.removeAll(where: { $0 == job.id })
+        if selectedJobID == job.id { selectedJobID = nil }
     }
 
     private func ensureDefaultCategoriesIfNeeded() {
@@ -404,6 +413,12 @@ struct ContentView: View {
         jobToRename?.name = trimmed
         showingJobRename = false
         jobToRename = nil
+    }
+
+    private func jobRow(for job: MailMergeJob) -> some View {
+        JobRowView(job: job)
+            .tag(job.id)
+            .contentShape(Rectangle())
     }
 }
 
@@ -723,6 +738,7 @@ private struct NewJobCategoryPickerView: View {
     @Environment(\.dismiss) private var dismiss
     let categories: [Category]
     @Binding var selectedCategoryID: UUID?
+    @Binding var jobName: String
     let onCreate: () -> Void
 
     var body: some View {
@@ -730,44 +746,57 @@ private struct NewJobCategoryPickerView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("New Job")
                     .font(.title3.bold())
-                Text("Choose a category for your mail merge job.")
+                Text("Name your job and choose a category.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 6) {
-                ForEach(categories) { category in
-                    let isSelected = selectedCategoryID == category.id
-                    Button {
-                        selectedCategoryID = category.id
-                    } label: {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(CategoryColorOption.color(for: category.colorName).opacity(0.15))
-                                Image(systemName: category.systemImageName)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(CategoryColorOption.color(for: category.colorName))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Name")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("Job name (optional)", text: $jobName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Category")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                VStack(spacing: 6) {
+                    ForEach(categories) { category in
+                        let isSelected = selectedCategoryID == category.id
+                        Button {
+                            selectedCategoryID = category.id
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(CategoryColorOption.color(for: category.colorName).opacity(0.15))
+                                    Image(systemName: category.systemImageName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(CategoryColorOption.color(for: category.colorName))
+                                }
+                                .frame(width: 30, height: 30)
+                                Text(category.name)
+                                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if isSelected {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.mergeformBlue)
+                                }
                             }
-                            .frame(width: 30, height: 30)
-                            Text(category.name)
-                                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if isSelected {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.mergeformBlue)
-                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(isSelected ? Color.mergeformBlue.opacity(0.08) : Color.primary.opacity(0.04))
+                            )
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(isSelected ? Color.mergeformBlue.opacity(0.08) : Color.primary.opacity(0.04))
-                        )
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
 

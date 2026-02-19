@@ -1,6 +1,6 @@
 import SwiftUI
 import FlexStore
-import StoreKit
+import AppKit
 
 // MARK: - Paywall Sheet
 
@@ -103,11 +103,7 @@ struct PaywallView: View {
 
     private var paywallBackground: some View {
         ZStack {
-#if canImport(AppKit)
             Color(nsColor: .windowBackgroundColor)
-#else
-            Color(.systemBackground)
-#endif
             LinearGradient(
                 colors: [Color.accentColor.opacity(0.06), .clear],
                 startPoint: .top,

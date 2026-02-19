@@ -4,17 +4,12 @@ import PDFKit
 import SwiftUI
 import CoreText
 import CoreXLSX
-#if canImport(AppKit)
 import AppKit
+
 typealias PlatformImage = NSImage
-#elseif canImport(UIKit)
-import UIKit
-typealias PlatformImage = UIImage
-#endif
 
 actor DOCXParserService {
     func parseTemplate(bookmarkData: Data) async throws -> AttributedTemplate {
-        #if os(macOS)
         let url = try SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData)
         defer { SecurityScopedAccess.stopAccessing(url) }
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
@@ -24,9 +19,6 @@ actor DOCXParserService {
             let attributed = try NSAttributedString(url: url, options: options, documentAttributes: nil)
             return AttributedTemplate(value: attributed)
         }
-        #else
-        throw MergeError.featureUnavailable
-        #endif
     }
 
     func extractPlaceholders(from content: AttributedTemplate) async -> [String] {
@@ -239,7 +231,10 @@ actor ExcelParserService {
         styles: Styles?,
         headerName: String?
     ) -> String {
-        if let sharedStrings, let value = cell.stringValue(sharedStrings) {
+        if cell.type == .inlineStr, let inline = cell.inlineString?.text {
+            return inline
+        }
+        if cell.type == .sharedString, let sharedStrings, let value = cell.stringValue(sharedStrings) {
             if let formatted = formattedStringValue(
                 value,
                 cell: cell,
@@ -249,6 +244,9 @@ actor ExcelParserService {
                 return formatted
             }
             return normalizeNumericString(value)
+        }
+        if cell.type == .string, let rawValue = cell.value {
+            return rawValue
         }
         guard let rawValue = cell.value else { return "" }
         if let formatted = formattedCellValue(
@@ -497,6 +495,7 @@ actor ExcelParserService {
     }
 }
 
+@MainActor
 final class PDFGeneratorService {
     func generatePDF(
         from attributedString: NSAttributedString,
@@ -519,6 +518,50 @@ final class PDFGeneratorService {
             margins: margins,
             headerImageData: headerImageData
         )
+    }
+    
+    /// Async version of generatePDF that yields cooperatively during processing
+    func generatePDFAsync(
+        from attributedString: NSAttributedString,
+        pageSize: CGSize,
+        margins: EdgeInsets,
+        headerImageData: Data?
+    ) async throws -> Data {
+        // Yield before starting to allow UI to update
+        await Task.yield()
+        
+        let data = try generatePDF(
+            from: attributedString,
+            pageSize: pageSize,
+            margins: margins,
+            headerImageData: headerImageData
+        )
+        
+        // Yield after completion to allow UI to process the result
+        await Task.yield()
+        
+        return data
+    }
+    
+    /// Async version for multiple pages with cooperative yielding
+    func generatePDFAsync<S: Sequence>(
+        pages: S,
+        pageSize: CGSize,
+        margins: EdgeInsets,
+        headerImageData: Data?
+    ) async throws -> Data where S.Element == NSAttributedString {
+        await Task.yield()
+        
+        let data = try generatePDF(
+            pages: pages,
+            pageSize: pageSize,
+            margins: margins,
+            headerImageData: headerImageData
+        )
+        
+        await Task.yield()
+        
+        return data
     }
 
     func generatePDF<S: Sequence>(
@@ -549,7 +592,6 @@ final class PDFGeneratorService {
         }
         let pdfDocument = PDFDocument()
         for page in pages {
-#if canImport(AppKit)
             renderAttributedString(
                 page,
                 pdfDocument: pdfDocument,
@@ -558,22 +600,6 @@ final class PDFGeneratorService {
                 headerImage: headerImage,
                 headerRect: headerRect
             )
-#else
-            let data = renderAttributedStringData(
-                page,
-                pageSize: pageSize,
-                textRect: textRect,
-                headerImage: headerImage,
-                headerRect: headerRect
-            )
-            if let pageDocument = PDFDocument(data: data) {
-                for index in 0..<pageDocument.pageCount {
-                    if let pdfPage = pageDocument.page(at: index) {
-                        pdfDocument.insert(pdfPage, at: pdfDocument.pageCount)
-                    }
-                }
-            }
-#endif
         }
         guard let data = pdfDocument.dataRepresentation() else {
             throw MergeError.pdfGenerationFailed
@@ -581,7 +607,6 @@ final class PDFGeneratorService {
         return data
     }
 
-    #if canImport(AppKit)
     private func renderAttributedString(
         _ attributedString: NSAttributedString,
         pdfDocument: PDFDocument,
@@ -625,48 +650,6 @@ final class PDFGeneratorService {
             glyphIndex = NSMaxRange(glyphRange)
         }
     }
-    #else
-    private func renderAttributedStringData(
-        _ attributedString: NSAttributedString,
-        pageSize: CGSize,
-        textRect: CGRect,
-        headerImage: PlatformImage?,
-        headerRect: CGRect?
-    ) -> Data {
-        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize))
-        return renderer.pdfData { context in
-            let textStorage = NSTextStorage(attributedString: attributedString)
-            let layoutManager = NSLayoutManager()
-            textStorage.addLayoutManager(layoutManager)
-
-            var glyphIndex = 0
-            var isFirstPage = true
-            while glyphIndex < layoutManager.numberOfGlyphs {
-                if isFirstPage {
-                    isFirstPage = false
-                } else {
-                    context.beginPage()
-                }
-
-                if let headerImage, let headerRect {
-                    headerImage.draw(in: headerRect)
-                }
-
-                let textContainer = NSTextContainer(size: textRect.size)
-                textContainer.lineFragmentPadding = 0
-                layoutManager.addTextContainer(textContainer)
-
-                let glyphRange = layoutManager.glyphRange(for: textContainer)
-                if glyphRange.length == 0 { break }
-                let drawOrigin = CGPoint(x: textRect.minX, y: textRect.minY)
-                layoutManager.drawBackground(forGlyphRange: glyphRange, at: drawOrigin)
-                layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: drawOrigin)
-
-                glyphIndex = NSMaxRange(glyphRange)
-            }
-        }
-    }
-    #endif
 
     private func headerFrame(for image: PlatformImage, pageSize: CGSize, margins: EdgeInsets) -> CGRect {
         let maxWidth = pageSize.width - margins.leading - margins.trailing
@@ -681,7 +664,6 @@ final class PDFGeneratorService {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 }
-#if canImport(AppKit)
 private final class PDFTextPageView: NSView {
     private let layoutManager: NSLayoutManager
     private let textContainer: NSTextContainer
@@ -723,7 +705,6 @@ private final class PDFTextPageView: NSView {
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: textOrigin)
     }
 }
-#endif
 
 final class MergeEngine {
     private let docxParser: DOCXParserService
@@ -776,23 +757,34 @@ final class MergeEngine {
         let mappingSnapshots = job.fieldMappings.map { MappingSnapshot(from: $0) }
         let rowData = buildRowData(headers: sheet.headers, row: row)
         let attributedString = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappingSnapshots)
-        let data = try await MainActor.run {
-            try pdfGenerator.generatePDF(
-                from: attributedString,
-                pageSize: CGSize(width: 612, height: 792),
-                margins: EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48),
-                headerImageData: headerImageData
-            )
-        }
+        
+        // Use async version for better UI responsiveness
+        let data = try await pdfGenerator.generatePDFAsync(
+            from: attributedString,
+            pageSize: CGSize(width: 612, height: 792),
+            margins: EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48),
+            headerImageData: headerImageData
+        )
         return (data, totalRecords)
     }
 
     func performMerge(
         job: MailMergeJob,
         singleDocument: Bool,
-        progress: @escaping @Sendable @MainActor (Int, Int) -> Void
+        progress: @escaping @Sendable @MainActor (Int, Int) -> Void,
+        nsProgress: Progress? = nil
     ) async throws -> MergeResult {
         let start = Date()
+        
+        // Prevent system sleep/app nap during long-running merge
+        let activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "Performing mail merge operation"
+        )
+        defer {
+            ProcessInfo.processInfo.endActivity(activity)
+        }
+        
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
         }
@@ -817,6 +809,11 @@ final class MergeEngine {
             let dataRows = filteredRows(sheet.rows)
             let totalRecords = dataRows.count
             guard totalRecords > 0 else { throw MergeError.noRecords }
+            
+            // Set up NSProgress if provided
+            let progressTracker = nsProgress ?? Progress(totalUnitCount: Int64(totalRecords))
+            progressTracker.localizedDescription = "Merging documents"
+            progressTracker.localizedAdditionalDescription = "Processing 0 of \(totalRecords) records"
 
             let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
             let jobName = job.name
@@ -828,33 +825,59 @@ final class MergeEngine {
             let attachmentURL: URL?
             let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
             defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
+            
+            // Update UI every 10 records or 0.1 seconds to avoid overwhelming the main thread
+            let progressUpdateInterval = max(1, totalRecords / 100) // Update ~100 times total
+            var lastProgressUpdate = Date()
+            
             if singleDocument {
-                var index = 0
-                let pages = AnySequence<NSAttributedString> {
-                    AnyIterator {
-                        guard index < dataRows.count else { return nil }
-                        let row = dataRows[index]
-                        let rowData = self.buildRowData(headers: sheet.headers, row: row)
-                        let mergedText = self.applyMappings(
-                            templateText: templateText.value,
-                            rowData: rowData,
-                            mappings: mappings
-                        )
-                        index += 1
-                        Task { @MainActor in
-                            progress(index, totalRecords)
+                // For single document mode, we need to generate all pages at once
+                // But we can still yield between data preparation and PDF generation
+                var attributedPages: [NSAttributedString] = []
+                
+                for (index, row) in dataRows.enumerated() {
+                    // Check for cancellation
+                    if progressTracker.isCancelled {
+                        throw CancellationError()
+                    }
+                    
+                    let rowData = buildRowData(headers: sheet.headers, row: row)
+                    let mergedText = applyMappings(
+                        templateText: templateText.value,
+                        rowData: rowData,
+                        mappings: mappings
+                    )
+                    attributedPages.append(mergedText)
+                    
+                    let currentIndex = index + 1
+                    let shouldUpdate = currentIndex % progressUpdateInterval == 0 
+                        || currentIndex == totalRecords 
+                        || Date().timeIntervalSince(lastProgressUpdate) > 0.1
+                    
+                    if shouldUpdate {
+                        lastProgressUpdate = Date()
+                        await MainActor.run {
+                            progress(currentIndex, totalRecords)
+                            progressTracker.completedUnitCount = Int64(currentIndex)
+                            progressTracker.localizedAdditionalDescription = "Preparing \(currentIndex) of \(totalRecords) records"
                         }
-                        return mergedText
+                        // Yield to allow UI updates
+                        await Task.yield()
                     }
                 }
-                let data = try await MainActor.run {
-                    try pdfGenerator.generatePDF(
-                        pages: pages,
-                        pageSize: pageSize,
-                        margins: margins,
-                        headerImageData: headerImageData
-                    )
+                
+                // Generate the combined PDF with cooperative yielding
+                await MainActor.run {
+                    progressTracker.localizedAdditionalDescription = "Generating combined PDF..."
                 }
+                
+                let data = try await pdfGenerator.generatePDFAsync(
+                    pages: attributedPages,
+                    pageSize: pageSize,
+                    margins: margins,
+                    headerImageData: headerImageData
+                )
+                
                 let filename = sanitizeFileName("Merged_\(jobName)").appending(".pdf")
                 let fileURL = outputFolderURL.appending(path: filename)
                 try data.write(to: fileURL)
@@ -863,17 +886,30 @@ final class MergeEngine {
             } else {
                 var outputFiles: [URL] = []
                 var lastOutput: URL? = nil
+                var lastProgressUpdate = Date()
+                
+                // Process documents with explicit yielding to keep UI responsive
                 for (index, row) in dataRows.enumerated() {
+                    // Check for cancellation before each row
+                    if progressTracker.isCancelled {
+                        throw CancellationError()
+                    }
+                    
+                    // Yield before processing each document to keep UI responsive
+                    await Task.yield()
+                    
+                    // Prepare the data (fast, can stay on current task)
                     let rowData = buildRowData(headers: sheet.headers, row: row)
                     let attributed = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
-                    let data = try await MainActor.run {
-                        try pdfGenerator.generatePDF(
-                            from: attributed,
-                            pageSize: pageSize,
-                            margins: margins,
-                            headerImageData: headerImageData
-                        )
-                    }
+                    
+                    // Generate PDF with cooperative yielding
+                    let data = try await pdfGenerator.generatePDFAsync(
+                        from: attributed,
+                        pageSize: pageSize,
+                        margins: margins,
+                        headerImageData: headerImageData
+                    )
+                    
                     let fileName = outputFileName(
                         pattern: filePattern,
                         rowIndex: index + 1,
@@ -883,8 +919,31 @@ final class MergeEngine {
                     try data.write(to: fileURL)
                     lastOutput = fileURL
                     outputFiles.append(fileURL)
-                    await MainActor.run {
-                        progress(index + 1, totalRecords)
+                    
+                    // Update progress
+                    let currentIndex = index + 1
+                    let shouldUpdate = currentIndex % progressUpdateInterval == 0 
+                        || currentIndex == totalRecords 
+                        || Date().timeIntervalSince(lastProgressUpdate) > 0.1
+                    
+                    if shouldUpdate {
+                        lastProgressUpdate = Date()
+                        await MainActor.run {
+                            progress(currentIndex, totalRecords)
+                            progressTracker.completedUnitCount = Int64(currentIndex)
+                            progressTracker.localizedAdditionalDescription = "Processing \(currentIndex) of \(totalRecords) records"
+                        }
+                        // Explicit yield after UI update to allow rendering
+                        await Task.yield()
+                        // Add a small suspension to force RunLoop processing
+                        try? await Task.sleep(for: .milliseconds(1))
+                    } else {
+                        // Still update NSProgress without UI update, but yield periodically
+                        progressTracker.completedUnitCount = Int64(currentIndex)
+                        // Yield every few documents even when not updating UI
+                        if currentIndex % 3 == 0 {
+                            await Task.yield()
+                        }
                     }
                 }
                 outputURL = lastOutput
@@ -916,6 +975,7 @@ final class MergeEngine {
         }
     }
 
+
     private func applyMappings(
         templateText: NSAttributedString,
         rowData: [String: String],
@@ -926,7 +986,17 @@ final class MergeEngine {
             guard let columnName = mapping.columnName else { continue }
             let rawValue = rowData[columnName] ?? ""
             let transformed = mapping.transformation.apply(to: rawValue, formatString: mapping.formatString)
-            replaceAllOccurrences(in: output, placeholder: mapping.placeholderText, replacement: transformed)
+            for placeholder in placeholderVariants(for: mapping.placeholderText) {
+                replaceAllOccurrences(in: output, placeholder: placeholder, replacement: transformed)
+            }
+            for pattern in placeholderRegexVariants(for: mapping.placeholderText) {
+                replaceAllRegexOccurrences(in: output, pattern: pattern, replacement: transformed)
+            }
+        }
+        // Strip any remaining placeholder tokens (unmapped fields) so they
+        // don't appear as raw {{...}}, <<...>>, ${...}, or [[...]] in the output.
+        for pattern in ["\\{\\{.*?\\}\\}", "<<.*?>>", "\\$\\{.*?\\}", "\\[\\[.*?\\]\\]"] {
+            replaceAllRegexOccurrences(in: output, pattern: pattern, replacement: "")
         }
         return output
     }
@@ -972,6 +1042,75 @@ final class MergeEngine {
             if nextLocation >= attributedString.length { break }
             searchRange = NSRange(location: nextLocation, length: attributedString.length - nextLocation)
         }
+    }
+
+    private func replaceAllRegexOccurrences(
+        in attributedString: NSMutableAttributedString,
+        pattern: String,
+        replacement: String
+    ) {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return
+        }
+        let fullRange = NSRange(location: 0, length: attributedString.length)
+        let matches = regex.matches(in: attributedString.string, range: fullRange).reversed()
+        for match in matches {
+            let range = match.range
+            guard range.location != NSNotFound else { continue }
+            let attributes = attributedString.attributes(at: range.location, effectiveRange: nil)
+            let replacementString = NSAttributedString(string: replacement, attributes: attributes)
+            attributedString.replaceCharacters(in: range, with: replacementString)
+        }
+    }
+
+    private func placeholderVariants(for placeholder: String) -> [String] {
+        let base = normalizedPlaceholder(placeholder)
+        guard !base.isEmpty else { return [] }
+        // Only include the full wrapped forms. Never match the bare field name,
+        // as it would match inside e.g. {{First Name}} replacing just "First Name"
+        // with the value and leaving orphaned {{ }} in the output.
+        var variants: [String] = [
+            "{{\(base)}}",
+            "<<\(base)>>",
+            "${\(base)}",
+            "[[\(base)]]"
+        ]
+        // If the stored placeholder already contains wrapping (e.g. stored as
+        // "{{First Name}}" from an older code path), include it too.
+        if placeholder != base {
+            variants.insert(placeholder, at: 0)
+        }
+        return variants
+    }
+
+    private func placeholderRegexVariants(for placeholder: String) -> [String] {
+        let base = normalizedPlaceholder(placeholder)
+        guard !base.isEmpty else { return [] }
+        let escaped = NSRegularExpression.escapedPattern(for: base)
+        return [
+            "\\{\\{\\s*\(escaped)\\s*\\}\\}",
+            "<<\\s*\(escaped)\\s*>>",
+            "\\$\\{\\s*\(escaped)\\s*\\}",
+            "\\[\\[\\s*\(escaped)\\s*\\]\\]"
+        ]
+    }
+
+    private func normalizedPlaceholder(_ value: String) -> String {
+        var trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wrappers: [(String, String)] = [("{{", "}}"), ("<<", ">>"), ("${", "}"), ("[[", "]]"), ("(", ")")]
+        var didStrip = true
+        while didStrip {
+            didStrip = false
+            for (open, close) in wrappers {
+                if trimmed.hasPrefix(open), trimmed.hasSuffix(close), trimmed.count >= open.count + close.count + 1 {
+                    trimmed = String(trimmed.dropFirst(open.count).dropLast(close.count))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    didStrip = true
+                    break
+                }
+            }
+        }
+        return trimmed
     }
 
     private func sanitizeFileName(_ value: String) -> String {
@@ -1043,7 +1182,6 @@ extension EnvironmentValues {
 enum SecurityScopedAccess {
     nonisolated static func startAccessing(bookmarkData: Data) throws -> URL {
         var isStale = false
-        #if os(macOS)
         let url = try URL(
             resolvingBookmarkData: bookmarkData,
             options: .withSecurityScope,
@@ -1057,23 +1195,9 @@ enum SecurityScopedAccess {
             throw MergeError.securityScopeUnavailable
         }
         return url
-        #else
-        let url = try URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        )
-        if isStale {
-            throw MergeError.staleBookmark
-        }
-        return url
-        #endif
     }
 
     nonisolated static func stopAccessing(_ url: URL) {
-        #if os(macOS)
         url.stopAccessingSecurityScopedResource()
-        #endif
     }
 }

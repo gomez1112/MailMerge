@@ -166,15 +166,11 @@ struct TemplateConfigView: View {
         guard isValidDocxURL(url) else {
             throw MergeError.invalidTemplate
         }
-        #if os(macOS)
         guard url.startAccessingSecurityScopedResource() else {
             throw MergeError.securityScopeUnavailable
         }
         defer { url.stopAccessingSecurityScopedResource() }
         let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-        #else
-        let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
-        #endif
         job.templateBookmarkData = bookmarkData
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()
@@ -206,8 +202,11 @@ struct TemplateConfigView: View {
     }
 
     private func syncMappings(with placeholders: [String]) {
+        let cleanedPlaceholders = placeholders
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         let existing = Set(job.fieldMappings.map { $0.placeholderText })
-        let toAdd = placeholders.filter { !existing.contains($0) }
+        let toAdd = cleanedPlaceholders.filter { !existing.contains($0) }
         if !toAdd.isEmpty {
             for placeholder in toAdd {
                 let mapping = FieldMapping(placeholderText: placeholder, job: job)
