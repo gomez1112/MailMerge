@@ -9,7 +9,7 @@
       }
     ]
   },
-  "identifier" : "MM800001",
+  "identifier" : "B40BF996",
   "nonRenewingSubscriptions" : [
 
   ],
@@ -17,10 +17,10 @@
     {
       "displayPrice" : "29.99",
       "familyShareable" : true,
-      "internalID" : "MM800004",
+      "internalID" : "6759202673",
       "localizations" : [
         {
-          "description" : "Unlock Mergeform Pro forever. One-time purchase, no subscription required.",
+          "description" : "Unlock Mergeform Pro forever.",
           "displayName" : "Lifetime Access",
           "locale" : "en_US"
         }
@@ -31,11 +31,14 @@
     }
   ],
   "settings" : {
+    "_applicationInternalID" : "6759203950",
     "_askToBuyEnabled" : false,
     "_billingGracePeriodEnabled" : false,
     "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "88QL9VPLMY",
     "_disableDialogs" : false,
     "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 794614880.80527198,
     "_locale" : "en_US",
     "_renewalBillingIssuesEnabled" : false,
     "_storefront" : "USA",
@@ -46,7 +49,7 @@
   },
   "subscriptionGroups" : [
     {
-      "id" : "MM800002",
+      "id" : "21934274",
       "localizations" : [
 
       ],
@@ -59,22 +62,22 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "4.99",
+          "displayPrice" : "39.99",
           "familyShareable" : true,
           "groupNumber" : 1,
-          "internalID" : "MM800003",
+          "internalID" : "6759205118",
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Full access to all Mergeform Pro features. Cancel anytime.",
-              "displayName" : "MergeformPro (Monthly)",
+              "description" : "Full access to all Mergeform Pro features.",
+              "displayName" : "Mergeform Pro (Annual)",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.mergeform.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Pro Monthly",
-          "subscriptionGroupID" : "MM800002",
+          "productID" : "com.mergeform.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Annual",
+          "subscriptionGroupID" : "21934274",
           "type" : "RecurringSubscription",
           "winbackOffers" : [
 
@@ -87,26 +90,22 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "39.99",
+          "displayPrice" : "4.99",
           "familyShareable" : true,
           "groupNumber" : 1,
-          "internalID" : "MM800005",
-          "introductoryOffer" : {
-            "internalID" : "MM800006",
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P1W"
-          },
+          "internalID" : "6759205061",
+          "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Full access to all Mergeform Pro features. Includes a 7-day free trial.",
-              "displayName" : "Mergeform Pro (Annual)",
+              "description" : "Full access to all Mergeform Pro features.",
+              "displayName" : "MergeformPro (Monthly)",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.mergeform.pro.annual",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Pro Annual",
-          "subscriptionGroupID" : "MM800002",
+          "productID" : "com.mergeform.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "21934274",
           "type" : "RecurringSubscription",
           "winbackOffers" : [
 

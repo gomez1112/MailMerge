@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FlexStore
+import StoreKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -35,11 +36,11 @@ struct ContentView: View {
     @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
-    @State private var isStoreReady = false
     @State private var selectedJobID: UUID?
+    @State private var entitlementHasPro = false
+    @State private var entitlementObserverTask: Task<Void, Never>?
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
-    @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
 
     private let freeJobLimit = 3
 
@@ -138,8 +139,8 @@ struct ContentView: View {
             }
         }
         .onAppear(perform: ensureDefaultCategoriesIfNeeded)
-        .onAppear(perform: scheduleStoreReadyCheck)
-        .onAppear(perform: cacheSubscriptionTier)
+        .onAppear(perform: refreshEntitlementFallback)
+        .onAppear(perform: startEntitlementObserver)
         .onAppear(perform: restoreNavigationPath)
             .onChange(of: navigationPath) { _, newPath in
                 persistNavigationPath(newPath)
@@ -154,9 +155,9 @@ struct ContentView: View {
                 }
             }
             .onChange(of: store.subscriptionTier) { _, _ in
-                isStoreReady = true
-                cacheSubscriptionTier()
+                refreshEntitlementFallback()
             }
+        .onDisappear(perform: stopEntitlementObserver)
         .onReceive(NotificationCenter.default.publisher(for: .createNewJob)) { _ in createJob() }
         .focusedSceneValue(\.deleteJobAction, focusedDeleteAction)
         .focusedSceneValue(\.renameJobAction, focusedRenameAction)
@@ -242,27 +243,31 @@ struct ContentView: View {
     }
 
     private func createJob() {
-        guard canCreateJob else {
-            showLimitAlertAndPaywall()
-            return
+        Task { @MainActor in
+            guard await canCreateJobNow() else {
+                showLimitAlertAndPaywall()
+                return
+            }
+            newJobCategoryID = (uncategorizedCategory ?? categories.first)?.id
+            newJobName = ""
+            showingNewJobSheet = true
         }
-        newJobCategoryID = (uncategorizedCategory ?? categories.first)?.id
-        newJobName = ""
-        showingNewJobSheet = true
     }
 
     private func confirmCreateJob() {
-        guard canCreateJob else {
-            showLimitAlertAndPaywall()
-            return
+        Task { @MainActor in
+            guard await canCreateJobNow() else {
+                showLimitAlertAndPaywall()
+                return
+            }
+            let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
+            let jobName = newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Mergeform" : newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let job = MailMergeJob(name: jobName, category: category)
+            modelContext.insert(job)
+            navigationPath = [job.id]
+            showingNewJobSheet = false
+            recordJobCreation()
         }
-        let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
-        let jobName = newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Mergeform" : newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let job = MailMergeJob(name: jobName, category: category)
-        modelContext.insert(job)
-        navigationPath = [job.id]
-        showingNewJobSheet = false
-        recordJobCreation()
     }
 
     private func deleteJobs(offsets: IndexSet, in source: [MailMergeJob]) {
@@ -306,17 +311,16 @@ struct ContentView: View {
         categories.first(where: { $0.isLocked }) ?? categories.first(where: { $0.name == "Uncategorized" })
     }
 
+    private var hasProAccess: Bool {
+        store.subscriptionTier >= .pro || entitlementHasPro
+    }
+
     private var canCreateJob: Bool {
-        if store.subscriptionTier >= .pro { return true }
-        if !isStoreReady {
-            if cachedSubscriptionTier >= MailMergeTier.pro.rawValue { return true }
-            return jobCreationCount < freeJobLimit
-        }
-        return jobCreationCount < freeJobLimit
+        hasProAccess || jobCreationCount < freeJobLimit
     }
 
     private func recordJobCreation() {
-        if store.subscriptionTier < .pro {
+        if !hasProAccess {
             jobCreationCount += 1
         }
     }
@@ -326,18 +330,46 @@ struct ContentView: View {
         showingLimitAlert = true
     }
 
-    private func scheduleStoreReadyCheck() {
-        guard !isStoreReady else { return }
+    private func refreshEntitlementFallback() {
         Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await MainActor.run {
-                isStoreReady = true
+            entitlementHasPro = await hasCurrentProEntitlement()
+        }
+    }
+
+    private func startEntitlementObserver() {
+        guard entitlementObserverTask == nil else { return }
+        entitlementObserverTask = Task {
+            for await result in Transaction.updates {
+                guard case .verified(let transaction) = result else { continue }
+                if MailMergeTier(productID: transaction.productID) == .pro {
+                    await transaction.finish()
+                }
+                refreshEntitlementFallback()
             }
         }
     }
 
-    private func cacheSubscriptionTier() {
-        cachedSubscriptionTier = store.subscriptionTier.rawValue
+    private func stopEntitlementObserver() {
+        entitlementObserverTask?.cancel()
+        entitlementObserverTask = nil
+    }
+
+    private func hasCurrentProEntitlement() async -> Bool {
+        var hasPro = false
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else { continue }
+            if MailMergeTier(productID: transaction.productID) == .pro {
+                hasPro = true
+                await transaction.finish()
+            }
+        }
+        return hasPro
+    }
+
+    private func canCreateJobNow() async -> Bool {
+        if canCreateJob { return true }
+        entitlementHasPro = await hasCurrentProEntitlement()
+        return canCreateJob
     }
 
     /// Returns a badge count for a job: shows last run record count for completed jobs,

@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "CC87A4E42F34A5FE00EBE819"
-               BuildableName = "MailMerge.app"
+               BuildableName = "Mergeform.app"
                BlueprintName = "MailMerge"
                ReferencedContainer = "container:MailMerge.xcodeproj">
             </BuildableReference>
@@ -74,13 +74,13 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "CC87A4E42F34A5FE00EBE819"
-            BuildableName = "MailMerge.app"
+            BuildableName = "Mergeform.app"
             BlueprintName = "MailMerge"
             ReferencedContainer = "container:MailMerge.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <StoreKitConfigurationFileReference
-         identifier = "../../MailMerge/Resources/Configuration.storekit">
+         identifier = "../../Mergeform.storekit">
       </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
@@ -94,7 +94,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "CC87A4E42F34A5FE00EBE819"
-            BuildableName = "MailMerge.app"
+            BuildableName = "Mergeform.app"
             BlueprintName = "MailMerge"
             ReferencedContainer = "container:MailMerge.xcodeproj">
          </BuildableReference>

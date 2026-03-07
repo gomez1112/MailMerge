@@ -1,6 +1,6 @@
 import Testing
 import FlexStore
-@testable import MailMerge
+@testable import Mergeform
 
 @Suite("Store content")
 struct StoreContentTests {

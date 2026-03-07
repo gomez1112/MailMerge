@@ -1,5 +1,5 @@
 import Testing
-@testable import MailMerge
+@testable import Mergeform
 
 @MainActor
 @Suite("Mail merge tier")
@@ -17,9 +17,14 @@ struct MailMergeTierTests {
         #expect(MailMergeTier(levelOfService: level) == expected)
     }
 
-    @Test("Unknown level of service returns nil")
-    func unknownLevelOfServiceIsNil() {
-        #expect(MailMergeTier(levelOfService: 2) == nil)
+    @Test("Higher levels of service still map to pro")
+    func higherLevelOfServiceMapsToPro() {
+        #expect(MailMergeTier(levelOfService: 2) == .pro)
+    }
+
+    @Test("Negative level of service returns nil")
+    func negativeLevelOfServiceIsNil() {
+        #expect(MailMergeTier(levelOfService: -1) == nil)
     }
 
     @Test("Product ID mapping returns pro")

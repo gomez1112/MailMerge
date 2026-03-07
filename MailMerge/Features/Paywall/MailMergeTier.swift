@@ -16,7 +16,14 @@ enum MailMergeTier: Int, SubscriptionTier, CaseIterable, Comparable {
     /// Maps the App Store Connect "level of service" integer to a tier.
     /// Set level 1 = Pro in App Store Connect.
     init?(levelOfService: Int) {
-        self.init(rawValue: levelOfService)
+        switch levelOfService {
+        case ..<0:
+            return nil
+        case 0:
+            self = .free
+        default:
+            self = .pro
+        }
     }
 
     /// Fallback initialiser for product-ID–based resolution.
@@ -57,7 +64,7 @@ enum MailMergeProductIDs {
     static let lifetimePurchase     = "com.mergeform.pro.lifetime"
 
     /// The subscription group ID configured in App Store Connect.
-    static let subscriptionGroupID  = "MM800002"
+    static let subscriptionGroupID  = "21934274"
 
     /// All product IDs that need to be loaded at launch.
     static let all: Set<String> = [

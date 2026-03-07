@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MailMerge
+@testable import Mergeform
 
 @MainActor
 @Suite("Mail merge job configuration")

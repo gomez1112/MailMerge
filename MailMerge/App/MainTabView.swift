@@ -3,6 +3,7 @@ import SwiftData
 import UniformTypeIdentifiers
 import FlexStore
 import AppKit
+import StoreKit
 
 struct MainTabView: View {
     @State private var selection: SidebarDestination = .jobs
@@ -204,10 +205,10 @@ private struct TemplateLibraryView: View {
     @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
-    @State private var isStoreReady = false
+    @State private var entitlementHasPro = false
+    @State private var entitlementObserverTask: Task<Void, Never>?
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
-    @AppStorage("cachedSubscriptionTier") private var cachedSubscriptionTier = 0
 
     private let freeJobLimit = 3
 
@@ -272,8 +273,10 @@ private struct TemplateLibraryView: View {
                             TemplateCard(
                                 item: item,
                                 onUse: {
-                                    if let jobID = createJob(from: item) {
-                                        onOpenJobs(jobID)
+                                    Task { @MainActor in
+                                        if let jobID = await createJob(from: item) {
+                                            onOpenJobs(jobID)
+                                        }
                                     }
                                 },
                                 revealTitle: "Reveal",
@@ -318,12 +321,12 @@ private struct TemplateLibraryView: View {
         } message: {
             Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
         }
-        .onAppear(perform: scheduleStoreReadyCheck)
-        .onAppear(perform: cacheSubscriptionTier)
+        .onAppear(perform: refreshEntitlementFallback)
+        .onAppear(perform: startEntitlementObserver)
         .onChange(of: store.subscriptionTier) { _, _ in
-            isStoreReady = true
-            cacheSubscriptionTier()
+            refreshEntitlementFallback()
         }
+        .onDisappear(perform: stopEntitlementObserver)
     }
 
     private var templateEmptyState: some View {
@@ -338,19 +341,21 @@ private struct TemplateLibraryView: View {
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
-        do {
-            let urls = try result.get()
-            guard let url = urls.first else { return }
-            if let jobID = try storeTemplateURL(url) {
-                onOpenJobs(jobID)
+        Task { @MainActor in
+            do {
+                let urls = try result.get()
+                guard let url = urls.first else { return }
+                if let jobID = try await storeTemplateURL(url) {
+                    onOpenJobs(jobID)
+                }
+            } catch {
+                importErrorMessage = error.localizedDescription
             }
-        } catch {
-            importErrorMessage = error.localizedDescription
         }
     }
 
-    private func storeTemplateURL(_ url: URL) throws -> UUID? {
-        guard canCreateJob else {
+    private func storeTemplateURL(_ url: URL) async throws -> UUID? {
+        guard await canCreateJobNow() else {
             showLimitAlertAndPaywall()
             return nil
         }
@@ -373,8 +378,8 @@ private struct TemplateLibraryView: View {
         return job.id
     }
 
-    private func createJob(from item: TemplateItem) -> UUID? {
-        guard canCreateJob else {
+    private func createJob(from item: TemplateItem) async -> UUID? {
+        guard await canCreateJobNow() else {
             showLimitAlertAndPaywall()
             return nil
         }
@@ -398,17 +403,16 @@ private struct TemplateLibraryView: View {
         categories.first(where: { $0.isLocked }) ?? categories.first(where: { $0.name == "Uncategorized" })
     }
 
+    private var hasProAccess: Bool {
+        store.subscriptionTier >= .pro || entitlementHasPro
+    }
+
     private var canCreateJob: Bool {
-        if store.subscriptionTier >= .pro { return true }
-        if !isStoreReady {
-            if cachedSubscriptionTier >= MailMergeTier.pro.rawValue { return true }
-            return jobCreationCount < freeJobLimit
-        }
-        return jobCreationCount < freeJobLimit
+        hasProAccess || jobCreationCount < freeJobLimit
     }
 
     private func recordJobCreation() {
-        if store.subscriptionTier < .pro {
+        if !hasProAccess {
             jobCreationCount += 1
         }
     }
@@ -418,18 +422,46 @@ private struct TemplateLibraryView: View {
         showingLimitAlert = true
     }
 
-    private func scheduleStoreReadyCheck() {
-        guard !isStoreReady else { return }
+    private func refreshEntitlementFallback() {
         Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await MainActor.run {
-                isStoreReady = true
+            entitlementHasPro = await hasCurrentProEntitlement()
+        }
+    }
+
+    private func startEntitlementObserver() {
+        guard entitlementObserverTask == nil else { return }
+        entitlementObserverTask = Task {
+            for await result in Transaction.updates {
+                guard case .verified(let transaction) = result else { continue }
+                if MailMergeTier(productID: transaction.productID) == .pro {
+                    await transaction.finish()
+                }
+                refreshEntitlementFallback()
             }
         }
     }
 
-    private func cacheSubscriptionTier() {
-        cachedSubscriptionTier = store.subscriptionTier.rawValue
+    private func stopEntitlementObserver() {
+        entitlementObserverTask?.cancel()
+        entitlementObserverTask = nil
+    }
+
+    private func hasCurrentProEntitlement() async -> Bool {
+        var hasPro = false
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else { continue }
+            if MailMergeTier(productID: transaction.productID) == .pro {
+                hasPro = true
+                await transaction.finish()
+            }
+        }
+        return hasPro
+    }
+
+    private func canCreateJobNow() async -> Bool {
+        if canCreateJob { return true }
+        entitlementHasPro = await hasCurrentProEntitlement()
+        return canCreateJob
     }
 }
 

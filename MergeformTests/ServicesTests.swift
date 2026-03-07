@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
-@testable import MailMerge
+@testable import Mergeform
 
 @Suite("DOCX placeholder extraction")
 struct DOCXParserServiceTests {
