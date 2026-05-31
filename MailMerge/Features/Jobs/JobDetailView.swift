@@ -81,56 +81,39 @@ struct JobDetailView: View {
             // Job name header
             VStack(alignment: .leading, spacing: 6) {
                 Text(job.name)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
                     .lineLimit(2)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
                 StatusBadge(status: job.status)
             }
             .padding(.horizontal, 18)
             .padding(.top, 24)
             .padding(.bottom, 18)
 
-            // Progress bar (3pt, rounded caps, brand gradient)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.07))
-                        .frame(height: 3)
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: job.configurationProgress == 1
-                                    ? [Color.green, Color.green.opacity(0.75)]
-                                    : [Color.mergeformBlue, Color.mergeformOrange.opacity(0.6)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * job.configurationProgress, height: 3)
-                        .animation(.smooth(duration: 0.5), value: job.configurationProgress)
-                }
-            }
-            .frame(height: 3)
+            ProgressView(value: job.configurationProgress)
+                .tint(job.configurationProgress == 1 ? .green : .mergeformOrange)
+                .animation(.smooth(duration: 0.5), value: job.configurationProgress)
             .padding(.horizontal, 18)
             .padding(.bottom, 4)
 
             HStack {
                 Text("\(Int(job.configurationProgress * 100))% complete")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.52))
                 Spacer()
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 18)
 
             Divider()
+                .overlay(Color.white.opacity(0.12))
                 .padding(.bottom, 12)
 
             Text("Setup Steps")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.caption2)
+                .bold()
+                .foregroundStyle(.white.opacity(0.42))
                 .textCase(.uppercase)
-                .tracking(0.8)
                 .padding(.horizontal, 18)
                 .padding(.bottom, 8)
 
@@ -152,19 +135,21 @@ struct JobDetailView: View {
                 .padding(.horizontal, 10)
                 .padding(.bottom, 16)
             }
+            .scrollIndicators(.hidden)
 
             Spacer(minLength: 0)
 
-            // Only show the shortcut when not already on the preview step
             if selectedStep != .preview {
                 VStack(spacing: 10) {
                     Divider()
+                        .overlay(Color.white.opacity(0.12))
                     runMergeButton
                         .padding(.horizontal, 14)
                         .padding(.bottom, 16)
                 }
             }
         }
+        .background(Color.mergeformInk)
     }
 
     @ViewBuilder
@@ -202,7 +187,7 @@ struct JobDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 stepBreadcrumb
                     .padding(.horizontal, 32)
-                    .padding(.top, 28)
+                    .padding(.top, 30)
                     .padding(.bottom, 22)
                 stepView
                     .id(selectedStep)
@@ -218,27 +203,27 @@ struct JobDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.mergeformBackground.opacity(0.5))
+        .background(Color.mergeformBackground)
     }
 
     private var stepBreadcrumb: some View {
         HStack(spacing: 8) {
             ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.mergeformBlue.opacity(0.10))
                 Image(systemName: selectedStep.systemImageName)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption)
+                    .bold()
                     .foregroundStyle(Color.mergeformBlue)
             }
             .frame(width: 22, height: 22)
             Text("Step \(selectedStep.rawValue + 1) of \(MergeStep.allCases.count)")
-                .font(.system(size: 11))
+                .font(.caption)
                 .foregroundStyle(.tertiary)
             Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2)
                 .foregroundStyle(.quaternary)
             Text(selectedStep.title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption)
+                .bold()
                 .foregroundStyle(.secondary)
         }
         .animation(.smooth(duration: 0.2), value: selectedStep)

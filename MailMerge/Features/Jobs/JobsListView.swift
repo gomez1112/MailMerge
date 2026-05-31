@@ -52,7 +52,6 @@ struct ContentView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             jobsList
-            .listStyle(.inset)
             .navigationTitle("Jobs")
             .searchable(text: $searchText, prompt: "Search Jobs")
             .toolbar {
@@ -181,16 +180,17 @@ struct ContentView: View {
     }
 
     private var emptyCategory: some View {
-        HStack {
+        HStack(spacing: 10) {
             Image(systemName: "tray")
-                .font(.caption)
+                .font(.body)
                 .foregroundStyle(.tertiary)
             Text("No jobs")
                 .foregroundStyle(.tertiary)
-                .font(.caption)
+                .font(.callout)
+            Spacer()
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 4)
+        .padding()
+        .background(Color.white.opacity(0.42), in: .rect(cornerRadius: 10))
     }
 
     // MARK: - Actions
@@ -205,28 +205,25 @@ struct ContentView: View {
     @ViewBuilder
     private func categorySection(for category: Category) -> some View {
         let categoryJobs = filteredJobs.filter { ($0.category ?? uncategorizedCategory)?.id == category.id }
-        Section {
-            if categoryJobs.isEmpty {
-                emptyCategory
-            } else {
-                ForEach(categoryJobs) { job in
-                    jobRow(for: job)
-                        .badge(jobBadge(job))
-                        .contextMenu {
-                            Button("Rename") { beginRename(job) }
-                            Button("Delete", role: .destructive) { deleteJob(job) }
-                        }
-                }
-                .onDelete { offsets in
-                    deleteJobs(offsets: offsets, in: categoryJobs)
-                }
-            }
-        } header: {
+        VStack(alignment: .leading, spacing: 10) {
             CategoryHeaderView(
                 category: category,
                 onEdit: { beginEdit(category) },
                 onDelete: { pendingDeleteCategory = category }
             )
+            if categoryJobs.isEmpty {
+                emptyCategory
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(categoryJobs) { job in
+                        jobRow(for: job)
+                            .contextMenu {
+                                Button("Rename") { beginRename(job) }
+                                Button("Delete", role: .destructive) { deleteJob(job) }
+                            }
+                    }
+                }
+            }
         }
     }
 
@@ -235,10 +232,40 @@ struct ContentView: View {
     }
 
     private var jobsList: some View {
-        List(selection: $selectedJobID) {
-            ForEach(categories) { category in
-                categorySection(for: category)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                jobsOverview
+                ForEach(categories) { category in
+                    categorySection(for: category)
+                }
             }
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollIndicators(.hidden)
+        .background(Color.mergeformBackground)
+    }
+
+    private var jobsOverview: some View {
+        HStack(alignment: .top, spacing: 14) {
+            OverviewMetricCard(
+                title: "Jobs",
+                value: jobs.count.formatted(.number),
+                systemImageName: "rectangle.stack.fill",
+                tint: .mergeformBlue
+            )
+            OverviewMetricCard(
+                title: "Ready",
+                value: jobs.filter(\.isConfigured).count.formatted(.number),
+                systemImageName: "checkmark.seal.fill",
+                tint: .green
+            )
+            OverviewMetricCard(
+                title: "Completed",
+                value: jobs.filter { $0.status == .completed }.count.formatted(.number),
+                systemImageName: "doc.badge.gearshape.fill",
+                tint: .mergeformOrange
+            )
         }
     }
 
@@ -448,9 +475,45 @@ struct ContentView: View {
     }
 
     private func jobRow(for job: MailMergeJob) -> some View {
-        JobRowView(job: job)
-            .tag(job.id)
-            .contentShape(Rectangle())
+        NavigationLink(value: job.id) {
+            JobRowView(job: job)
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded {
+            selectedJobID = job.id
+        })
+    }
+}
+
+// MARK: - Overview Metric Card
+
+private struct OverviewMetricCard: View {
+    let title: String
+    let value: String
+    let systemImageName: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: systemImageName)
+                .font(.title3)
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.largeTitle)
+                .bold()
+                .monospacedDigit()
+                .foregroundStyle(Color.mergeformInk)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.mergeformPanel, in: .rect(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.mergeformStroke)
+        )
     }
 }
 
@@ -466,23 +529,19 @@ private struct CategoryHeaderView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
+        HStack(spacing: 9) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(categoryColor)
-                .frame(width: 3, height: 16)
-            ZStack {
-                Circle()
-                    .fill(categoryColor.opacity(0.12))
-                Image(systemName: category.systemImageName)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(categoryColor)
-            }
-            .frame(width: 18, height: 18)
+                .frame(width: 4, height: 18)
+            Image(systemName: category.systemImageName)
+                .font(.callout)
+                .foregroundStyle(categoryColor)
             Text(category.name)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption)
+                .bold()
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
-                .tracking(0.8)
+            Spacer()
         }
         .contextMenu {
             Button("Rename") { onEdit() }
@@ -516,27 +575,18 @@ private struct JobRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 13) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [iconColor.opacity(0.15), iconColor.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                Image(systemName: iconName)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(iconColor)
-            }
-            .frame(width: 38, height: 38)
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundStyle(iconColor)
+                .frame(width: 44, height: 44)
+                .background(iconColor.opacity(0.12), in: .rect(cornerRadius: 10))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(job.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(.headline)
+                    .foregroundStyle(Color.mergeformInk)
                 Text("Modified \(job.modifiedAt, format: .relative(presentation: .named))")
-                    .font(.system(size: 11))
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
 
@@ -545,31 +595,21 @@ private struct JobRowView: View {
             VStack(alignment: .trailing, spacing: 5) {
                 StatusBadge(status: job.status)
                 if job.configurationProgress > 0 && job.configurationProgress < 1 {
-                    ProgressIndicatorDots(progress: job.configurationProgress)
+                    ProgressView(value: job.configurationProgress)
+                        .tint(Color.mergeformBlue)
+                        .frame(width: 68)
                 }
             }
         }
-        .padding(.vertical, 5)
+        .padding()
+        .background(Color.mergeformPanel, in: .rect(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.mergeformStroke)
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(job.name), \(job.status.label), Modified \(job.modifiedAt, format: .relative(presentation: .named))")
         .accessibilityHint("Double-tap to view and edit this job")
-    }
-}
-
-private struct ProgressIndicatorDots: View {
-    let progress: Double
-
-    private let totalSteps = 5
-
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<totalSteps, id: \.self) { index in
-                let filled = Double(index) / Double(totalSteps) < progress
-                Circle()
-                    .fill(filled ? Color.mergeformBlue : Color.primary.opacity(0.12))
-                    .frame(width: 4, height: 4)
-            }
-        }
     }
 }
 
@@ -616,6 +656,8 @@ private struct CategoryManagerView: View {
                 .onMove(perform: onMove)
             }
             .navigationTitle("Categories")
+            .scrollContentBackground(.hidden)
+            .background(Color.mergeformBackground)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -657,24 +699,26 @@ private struct CategoryEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text(title)
-                .font(.title3.bold())
+                .font(.title3)
+                .bold()
+                .foregroundStyle(Color.mergeformInk)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Name")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption)
+                    .bold()
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .tracking(0.3)
                 TextField("Category name", text: $name)
                     .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Icon")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption)
+                    .bold()
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .tracking(0.3)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 6), spacing: 8) {
                     ForEach(CategoryIconOption.all) { option in
                         Button {
@@ -710,10 +754,10 @@ private struct CategoryEditorView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Color")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption)
+                    .bold()
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .tracking(0.3)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 8), spacing: 8) {
                     ForEach(CategoryColorOption.all) { option in
                         Button {
@@ -761,6 +805,7 @@ private struct CategoryEditorView: View {
         }
         .padding(24)
         .frame(width: 360)
+        .background(Color.mergeformBackground)
     }
 }
 
@@ -777,7 +822,9 @@ private struct NewJobCategoryPickerView: View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("New Job")
-                    .font(.title3.bold())
+                    .font(.title3)
+                    .bold()
+                    .foregroundStyle(Color.mergeformInk)
                 Text("Name your job and choose a category.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -785,7 +832,8 @@ private struct NewJobCategoryPickerView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Name")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption)
+                    .bold()
                     .foregroundStyle(.secondary)
                 TextField("Job name (optional)", text: $jobName)
                     .textFieldStyle(.roundedBorder)
@@ -793,7 +841,8 @@ private struct NewJobCategoryPickerView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Category")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption)
+                    .bold()
                     .foregroundStyle(.secondary)
                 VStack(spacing: 6) {
                     ForEach(categories) { category in
@@ -811,7 +860,8 @@ private struct NewJobCategoryPickerView: View {
                                 }
                                 .frame(width: 30, height: 30)
                                 Text(category.name)
-                                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                                    .font(.callout)
+                                    .bold(isSelected)
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 if isSelected {
@@ -846,6 +896,7 @@ private struct NewJobCategoryPickerView: View {
         }
         .padding(24)
         .frame(width: 380)
+        .background(Color.mergeformBackground)
         .onAppear {
             if selectedCategoryID == nil {
                 selectedCategoryID = categories.first?.id
@@ -869,7 +920,9 @@ private struct JobRenameView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Rename Job")
-                .font(.title3.bold())
+                .font(.title3)
+                .bold()
+                .foregroundStyle(Color.mergeformInk)
             TextField("Job name", text: $name)
                 .textFieldStyle(.roundedBorder)
             HStack {
@@ -885,6 +938,7 @@ private struct JobRenameView: View {
         }
         .padding(24)
         .frame(width: 320)
+        .background(Color.mergeformBackground)
     }
 }
 
@@ -957,9 +1011,4 @@ private struct CategoryColorOption: Identifiable {
     static func color(for name: String) -> Color {
         all.first(where: { $0.colorName == name })?.color ?? .gray
     }
-}
-
-#Preview {
-    ContentView(pendingJobID: .constant(nil))
-        .modelContainer(for: MailMergeJob.self, inMemory: true)
 }

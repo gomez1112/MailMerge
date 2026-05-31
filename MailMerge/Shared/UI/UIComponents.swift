@@ -5,12 +5,29 @@ import AppKit
 // MARK: - Brand Colors
 
 extension Color {
-    /// The primary brand blue — matches the blue shape in the app icon.
-    static let mergeformBlue = Color(red: 0.23, green: 0.55, blue: 0.96)
-    /// The secondary brand orange/amber — matches the warm shape in the app icon.
-    static let mergeformOrange = Color(red: 0.95, green: 0.58, blue: 0.22)
-    /// Subtle blue-purple background tint — matches the icon background.
-    static let mergeformBackground = Color(red: 0.55, green: 0.62, blue: 0.92).opacity(0.07)
+    /// Primary action blue used for focused controls and active workflow states.
+    static let mergeformBlue = Color(red: 0.10, green: 0.38, blue: 0.78)
+    /// Warm accent used for attention, automation, and in-progress states.
+    static let mergeformOrange = Color(red: 0.93, green: 0.48, blue: 0.18)
+    /// Deep ink used in branded surfaces and document previews.
+    static let mergeformInk = Color(red: 0.07, green: 0.09, blue: 0.13)
+    /// Soft page tint used for work surfaces.
+    static let mergeformBackground = Color(red: 0.95, green: 0.96, blue: 0.94)
+    /// Elevated panel fill with a warmer paper tone.
+    static let mergeformPanel = Color(red: 0.99, green: 0.985, blue: 0.965)
+    /// Subtle dividing stroke for cards and controls.
+    static let mergeformStroke = Color.black.opacity(0.08)
+}
+
+extension Text {
+    @ViewBuilder
+    func bold(_ isActive: Bool) -> some View {
+        if isActive {
+            bold()
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Section Header
@@ -22,29 +39,29 @@ struct SectionHeader: View {
     var iconColor: Color = .mergeformBlue
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [iconColor.opacity(0.18), iconColor.opacity(0.10)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Image(systemName: systemImageName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(iconColor)
-                }
-                .frame(width: 36, height: 36)
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: systemImageName)
+                .font(.title3)
+                .foregroundStyle(iconColor)
+                .frame(width: 34, height: 34)
+                .background(.white.opacity(0.72), in: .rect(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.mergeformStroke)
+                )
+
+            VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .font(.title2.bold())
+                    .font(.title2)
+                    .bold()
+                    .foregroundStyle(Color.mergeformInk)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 48)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -58,14 +75,14 @@ struct ConfigCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding(20)
+            .padding()
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.background)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.mergeformPanel)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.mergeformStroke)
             )
     }
 }
@@ -78,19 +95,13 @@ struct FileIconView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [color.opacity(0.16), color.opacity(0.09)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(color.opacity(0.12))
             Image(systemName: systemImageName)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.title3)
                 .foregroundStyle(color)
         }
-        .frame(width: 40, height: 40)
+        .frame(width: 42, height: 42)
     }
 }
 
@@ -106,37 +117,37 @@ struct DropTargetView: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.mergeformBlue.opacity(isHovering ? 0.16 : 0.09))
-                    Image(systemName: systemImageName)
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(Color.mergeformBlue)
-                }
-                .frame(width: 56, height: 56)
-                .scaleEffect(isHovering ? 1.06 : 1.0)
-                VStack(spacing: 4) {
+            HStack(spacing: 14) {
+                Image(systemName: systemImageName)
+                    .font(.title2)
+                    .foregroundStyle(Color.mergeformBlue)
+                    .frame(width: 48, height: 48)
+                    .background(Color.mergeformBlue.opacity(isHovering ? 0.16 : 0.10), in: .rect(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.headline)
                         .foregroundStyle(.primary)
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+                Spacer()
+                Image(systemName: "arrow.up.doc")
+                    .font(.body)
+                    .foregroundStyle(.tertiary)
             }
-            .frame(maxWidth: .infinity, minHeight: 140)
             .padding()
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isHovering ? Color.mergeformBlue.opacity(0.05) : Color.clear)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isHovering ? Color.mergeformBlue.opacity(0.06) : Color.white.opacity(0.45))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+                        style: StrokeStyle(lineWidth: 1.4, dash: [7, 5])
                     )
-                    .foregroundStyle(isHovering ? Color.mergeformBlue.opacity(0.7) : Color.secondary.opacity(0.3))
+                    .foregroundStyle(isHovering ? Color.mergeformBlue.opacity(0.6) : Color.mergeformStroke)
             )
         }
         .buttonStyle(.plain)
@@ -157,7 +168,7 @@ struct PlaceholderTag: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(
-                Capsule(style: .continuous)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(Color.mergeformBlue.opacity(0.10))
             )
     }
@@ -228,12 +239,13 @@ struct StatusBadge: View {
                 .fill(badgeColor)
                 .frame(width: 6, height: 6)
             Text(status.label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2)
+                .bold()
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .background(
-            Capsule(style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(badgeColor.opacity(0.13))
         )
         .foregroundStyle(badgeColor)
@@ -250,23 +262,17 @@ struct CircularProgressView: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 8)
+                .stroke(Color.secondary.opacity(0.12), lineWidth: 7)
             Circle()
                 .trim(from: 0, to: max(0.02, progress))
-                .stroke(
-                    LinearGradient(
-                        colors: [.mergeformBlue, .mergeformBlue.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                )
+                .stroke(Color.mergeformBlue, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 1) {
                 Text("\(Int(progress * 100))")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.headline)
+                    .bold()
                 Text("%")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
@@ -290,31 +296,35 @@ struct StepButton: View {
         Button(action: action) {
             HStack(spacing: 13) {
                 ZStack {
-                    Circle()
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(stepIndicatorFill)
                         .frame(width: 30, height: 30)
                     if isComplete {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.caption)
+                            .bold()
                             .foregroundStyle(.white)
                     } else {
                         Text("\(step.rawValue + 1)")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.callout)
+                            .bold()
                             .foregroundStyle(isSelected ? .white : .secondary)
                     }
                 }
                 Text(step.title)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .font(.callout)
+                    .bold(isSelected)
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.58))
                 Spacer()
                 if isSelected {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.mergeformBlue.opacity(0.7))
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .bold()
+                        .foregroundStyle(.white.opacity(0.7))
                 }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 13)
+            .padding(.vertical, 11)
+            .padding(.horizontal, 12)
             .stepButtonBackground(isSelected: isSelected)
         }
         .buttonStyle(.plain)
@@ -339,7 +349,7 @@ private extension View {
                 self.glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
             } else {
                 self.background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(Color.mergeformBlue.opacity(0.10))
                 )
             }
@@ -359,21 +369,18 @@ struct StatCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(iconColor.opacity(0.12))
-                Image(systemName: systemImageName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(iconColor)
-            }
+            Image(systemName: systemImageName)
+                .font(.body)
+                .foregroundStyle(iconColor)
             .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.largeTitle)
+                    .bold()
                     .foregroundStyle(.primary)
                     .monospacedDigit()
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -404,32 +411,16 @@ struct MappingProgressView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("\(mappedCount) of \(totalCount) mapped")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text("\(Int(progress * 100))%")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.callout)
+                    .bold()
                     .foregroundStyle(progress == 1 ? .green : .mergeformBlue)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.08))
-                        .frame(height: 6)
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: progress == 1
-                                    ? [Color.green, Color.green.opacity(0.8)]
-                                    : [Color.mergeformBlue, Color.mergeformBlue.opacity(0.7)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * progress, height: 6)
-                }
-            }
-            .frame(height: 6)
+            ProgressView(value: progress)
+                .tint(progress == 1 ? .green : .mergeformBlue)
             .animation(.smooth(duration: 0.4), value: progress)
         }
     }
@@ -446,10 +437,10 @@ struct DataPreviewTable: View {
             ForEach(rows.indices, id: \.self) { rowIndex in
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Row \(rowIndex + 1)")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2)
+                        .bold()
                         .foregroundStyle(.tertiary)
                         .textCase(.uppercase)
-                        .tracking(0.8)
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
                         ForEach(headers.indices, id: \.self) { columnIndex in
                             let value = rows[rowIndex].indices.contains(columnIndex)
@@ -457,11 +448,11 @@ struct DataPreviewTable: View {
                                 : ""
                             GridRow {
                                 Text(headers[columnIndex])
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 130, alignment: .leading)
                                 Text(value.isEmpty ? "—" : value)
-                                    .font(.system(size: 12))
+                                    .font(.callout)
                                     .foregroundStyle(.primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -470,8 +461,8 @@ struct DataPreviewTable: View {
                 }
                 .padding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.primary.opacity(0.03))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.5))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -507,7 +498,7 @@ extension View {
     @ViewBuilder
     func applyLiquidGlassIfAvailable() -> some View {
         if #available(macOS 26.0, *) {
-            self.glassEffect()
+            self.glassEffect(.regular, in: .rect(cornerRadius: 12))
         } else {
             self
         }
@@ -525,11 +516,12 @@ struct InfoRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
-                .font(.system(size: 12))
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(width: 110, alignment: .leading)
             Text(value)
-                .font(.system(size: 12, weight: .medium))
+                .font(.callout)
+                .bold()
                 .foregroundStyle(.primary)
             Spacer()
         }
@@ -550,10 +542,10 @@ struct CardLabel: View {
                     .foregroundStyle(Color.mergeformBlue)
             }
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption)
+                .bold()
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
-                .tracking(0.8)
         }
     }
 }

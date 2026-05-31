@@ -25,22 +25,14 @@ struct MainTabView: View {
 
     private var sidebarContent: some View {
         VStack(spacing: 0) {
-            // Brand header
             SidebarBrandHeader()
-                .padding(.horizontal, 16)
-                .padding(.top, 20)
-                .padding(.bottom, 16)
+                .padding()
 
-            Divider()
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-
-            // Navigation rows
-            VStack(spacing: 3) {
+            VStack(spacing: 6) {
                 sidebarRow(
                     destination: .jobs,
                     title: "Jobs",
-                    systemImage: "tray.full.fill"
+                    systemImage: "rectangle.stack.fill"
                 )
                 sidebarRow(
                     destination: .templates,
@@ -52,20 +44,11 @@ struct MainTabView: View {
 
             Spacer()
 
-            // Version footer
             SidebarVersionFooter()
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding()
         }
         .listStyle(.sidebar)
-        .background(
-            LinearGradient(
-                colors: [Color.mergeformBackground, Color.clear],
-                startPoint: .top,
-                endPoint: .center
-            )
-            .ignoresSafeArea()
-        )
+        .background(Color.mergeformInk.ignoresSafeArea())
     }
 
     @ViewBuilder
@@ -93,29 +76,32 @@ struct MainTabView: View {
             }
         } label: {
             HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(isSelected
-                              ? Color.mergeformBlue
-                              : Color.primary.opacity(0.07))
-                    Image(systemName: systemImage)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : .secondary)
-                }
-                .frame(width: 28, height: 28)
+                Image(systemName: systemImage)
+                    .font(.body)
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.55))
+                    .frame(width: 28, height: 28)
                 Text(title)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .font(.callout)
+                    .bold(isSelected)
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.62))
                 Spacer()
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isSelected
-                          ? Color.mergeformBlue.opacity(0.10)
+                          ? Color.white.opacity(0.12)
                           : Color.clear)
             )
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.mergeformOrange)
+                        .frame(width: 3)
+                        .padding(.vertical, 10)
+                }
+            }
         }
         .buttonStyle(.plain)
         .animation(.smooth(duration: 0.18), value: isSelected)
@@ -126,45 +112,24 @@ struct MainTabView: View {
 
 private struct SidebarBrandHeader: View {
     var body: some View {
-        HStack(spacing: 12) {
-            // Two-tone icon matching the app icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.55, green: 0.65, blue: 0.95),
-                                Color(red: 0.40, green: 0.50, blue: 0.88)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                // Orange shape (back)
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.mergeformOrange.opacity(0.9))
-                    .frame(width: 14, height: 14)
-                    .offset(x: -3, y: 3)
-                    .rotationEffect(.degrees(-8))
-                // Blue shape (front)
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.mergeformBlue.opacity(0.95))
-                    .frame(width: 14, height: 14)
-                    .offset(x: 3, y: -3)
-                    .rotationEffect(.degrees(8))
-            }
-            .frame(width: 36, height: 36)
-            .shadow(color: Color.mergeformBlue.opacity(0.25), radius: 4, x: 0, y: 2)
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: "point.3.connected.trianglepath.dotted")
+                .font(.title2)
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(Color.mergeformBlue, in: .rect(cornerRadius: 10))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Mergeform")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.primary)
+                    .font(.title3)
+                    .bold()
+                    .foregroundStyle(.white)
                 Text("Document automation")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.58))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -177,8 +142,8 @@ private struct SidebarVersionFooter: View {
 
     var body: some View {
         Text("Mergeform \(appVersion)")
-            .font(.system(size: 10))
-            .foregroundStyle(.quaternary)
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.32))
             .frame(maxWidth: .infinity, alignment: .center)
     }
 }
@@ -238,13 +203,14 @@ private struct TemplateLibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header bar
-            HStack(alignment: .center) {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Templates")
-                        .font(.title2.bold())
+                        .font(.largeTitle)
+                        .bold()
+                        .foregroundStyle(Color.mergeformInk)
                     Text("\(templateItems.count) template\(templateItems.count == 1 ? "" : "s")")
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -259,8 +225,6 @@ private struct TemplateLibraryView: View {
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 24)
-
-            Divider()
 
             if templateItems.isEmpty {
                 templateEmptyState
@@ -286,11 +250,14 @@ private struct TemplateLibraryView: View {
                             )
                         }
                     }
-                    .padding(32)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 32)
                 }
+                .scrollIndicators(.hidden)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.mergeformBackground)
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: [UTType(filenameExtension: "docx") ?? .data],
@@ -338,6 +305,7 @@ private struct TemplateLibraryView: View {
             Button("Import Template") { showingImporter = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.mergeformBackground)
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
@@ -477,60 +445,48 @@ private struct TemplateCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Thumbnail area
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.mergeformBlue.opacity(0.09),
-                                Color.mergeformBlue.opacity(0.04)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(0.68))
                 VStack(spacing: 10) {
                     Image(systemName: "doc.richtext")
-                        .font(.system(size: 34, weight: .light))
-                        .foregroundStyle(Color.mergeformBlue.opacity(0.55))
+                        .font(.largeTitle)
+                        .foregroundStyle(Color.mergeformBlue)
                     Text("DOCX")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.mergeformBlue.opacity(0.45))
-                        .tracking(2)
+                        .font(.caption2)
+                        .bold()
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(height: 120)
             .padding(.bottom, 14)
 
-            // File name and meta
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.fileName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.headline)
                     .lineLimit(2)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.mergeformInk)
                 HStack(spacing: 4) {
                     Text("Last used \(item.lastUsed, format: .dateTime.month().day().year())")
-                        .font(.system(size: 11))
+                        .font(.caption)
                         .foregroundStyle(.tertiary)
                     if item.usageCount > 1 {
                         Text("·")
                             .foregroundStyle(.quaternary)
                         Text("\(item.usageCount) jobs")
-                            .font(.system(size: 11))
+                            .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                 }
             }
             .padding(.bottom, 14)
 
-            // Action buttons
             HStack(spacing: 8) {
-                Button("Use Template") { onUse() }
+                Button("Use", systemImage: "plus") { onUse() }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.mergeformBlue)
                     .controlSize(.small)
-                Button(revealTitle) { onReveal() }
+                Button(revealTitle, systemImage: "arrow.up.forward.app") { onReveal() }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 Spacer()
@@ -538,14 +494,13 @@ private struct TemplateCard: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.primary.opacity(isHovering ? 0.055 : 0.035))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.mergeformPanel)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(
-                    isHovering ? Color.mergeformBlue.opacity(0.35) : Color.primary.opacity(0.07),
-                    lineWidth: 1
+                    isHovering ? Color.mergeformBlue.opacity(0.38) : Color.mergeformStroke
                 )
         )
         .scaleEffect(isHovering ? 1.01 : 1.0)
@@ -568,10 +523,4 @@ private struct TemplateSource {
     let bookmarkData: Data
     let fileName: String
     let lastUsed: Date
-}
-
-
-#Preview {
-    MainTabView()
-        .modelContainer(for: MailMergeJob.self, inMemory: true)
 }
