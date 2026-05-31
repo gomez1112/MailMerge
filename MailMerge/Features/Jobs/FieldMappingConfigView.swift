@@ -11,7 +11,7 @@ struct FieldMappingConfigView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(
                 title: "Field Mapping",
                 subtitle: "Match template placeholders to spreadsheet columns.",
@@ -36,7 +36,7 @@ struct FieldMappingConfigView: View {
                                 Label("Auto-Match", systemImage: "sparkles")
                             }
                         }
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .disabled(job.availableColumns.isEmpty || isAutoMatching || isLoadingColumns)
                     }
                     MappingProgressView(mappedCount: mappedCount, totalCount: job.fieldMappings.count)
@@ -53,7 +53,7 @@ struct FieldMappingConfigView: View {
                             Image(systemName: "wand.and.stars")
                                 .foregroundStyle(.tertiary)
                             Text("No placeholders detected yet. Scan the template in Step 1 to start mapping.")
-                                .font(.system(size: 12))
+                                .font(.callout)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 8)
@@ -76,6 +76,7 @@ struct FieldMappingConfigView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: job.selectedSheetName) {
             await loadColumnsIfNeeded()
         }
@@ -98,10 +99,10 @@ struct FieldMappingConfigView: View {
             Text("Status")
                 .frame(width: 70, alignment: .center)
         }
-        .font(.system(size: 10, weight: .semibold))
+        .font(.caption2)
+        .bold()
         .foregroundStyle(.tertiary)
         .textCase(.uppercase)
-        .tracking(0.3)
     }
 
     // MARK: - Auto-match
@@ -160,9 +161,9 @@ struct FieldMappingConfigView: View {
     private func normalized(_ value: String) -> String {
         value
             .lowercased()
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: " ", with: "")
+            .replacing("_", with: " ")
+            .replacing("-", with: " ")
+            .replacing(" ", with: "")
     }
 
     private func similarity(_ lhs: String, _ rhs: String) -> Double {
@@ -206,7 +207,8 @@ private struct MappingRow: View {
                 .frame(width: 28)
 
             Text(mapping.displayName)
-                .font(.system(size: 12, weight: .medium))
+                .font(.callout)
+                .bold()
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)

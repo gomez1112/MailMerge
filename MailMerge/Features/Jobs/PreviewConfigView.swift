@@ -27,7 +27,7 @@ struct PreviewConfigView: View {
     @State private var mergeTask: Task<Void, Never>?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(
                 title: "Preview & Run",
                 subtitle: "Review a sample document, then run the full merge.",
@@ -56,28 +56,27 @@ struct PreviewConfigView: View {
                 )
             }
 
-        Group {
-            if horizontalSizeClass == .compact {
-                VStack(spacing: 16) {
-                    previewPane
-                    mergeSettingsCard
-                    runMergeCard
-                }
-            } else {
-                HStack(alignment: .top, spacing: 16) {
-                    // PDF Preview pane
-                    previewPane
-
-                    // Run merge sidebar
-                    VStack(spacing: 12) {
+            Group {
+                if horizontalSizeClass == .compact {
+                    VStack(spacing: 16) {
+                        previewPane
                         mergeSettingsCard
                         runMergeCard
                     }
-                    .frame(width: 240)
+                } else {
+                    HStack(alignment: .top, spacing: 16) {
+                        previewPane
+
+                        VStack(spacing: 12) {
+                            mergeSettingsCard
+                            runMergeCard
+                        }
+                        .frame(width: 260)
+                    }
                 }
             }
         }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .alert("Merge Error", isPresented: $showingErrorAlert) {
             Button("OK") { }
         } message: {
@@ -110,7 +109,7 @@ struct PreviewConfigView: View {
                             Label("Generate Preview", systemImage: "eye")
                         }
                     }
-                    .font(.system(size: 12))
+                    .font(.callout)
                     .disabled(isGenerating)
                 }
 
@@ -125,14 +124,14 @@ struct PreviewConfigView: View {
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.primary.opacity(0.03))
+                            .fill(Color.white.opacity(0.5))
                             .frame(minHeight: 550)
                         VStack(spacing: 12) {
                             Image(systemName: "doc.richtext")
                                 .font(.system(size: 36))
                                 .foregroundStyle(.quaternary)
                             Text("Generate a preview to validate your merge.")
-                                .font(.system(size: 13))
+                                .font(.callout)
                                 .foregroundStyle(.tertiary)
                         }
                     }
@@ -155,7 +154,7 @@ struct PreviewConfigView: View {
             .disabled(!hasPreview || isGenerating || currentRecordIndex == 0)
 
             Text("Record \(currentRecordIndex + 1) of \(max(totalRecordCount, 1))")
-                .font(.system(size: 12))
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
 
@@ -180,9 +179,9 @@ struct PreviewConfigView: View {
                 Toggle(isOn: $job.combineIntoSinglePDF) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Combine into single PDF")
-                            .font(.system(size: 12))
+                            .font(.callout)
                         Text("All records in one file")
-                            .font(.system(size: 10))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -190,15 +189,15 @@ struct PreviewConfigView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     CardLabel(title: "Email Delivery", systemImage: "paperplane")
                     Toggle("Send after merge", isOn: $sendAfterMerge)
-                        .font(.system(size: 12))
+                        .font(.callout)
                     TextField("Recipient (optional)", text: $emailRecipient)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
+                        .font(.callout)
                     TextField("Subject", text: $emailSubject)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
+                        .font(.callout)
                     TextEditor(text: $emailBody)
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .frame(minHeight: 80)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -213,7 +212,7 @@ struct PreviewConfigView: View {
                             ProgressView()
                                 .controlSize(.small)
                             Text("Loading data…")
-                                .font(.system(size: 12))
+                                .font(.callout)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -242,10 +241,11 @@ struct PreviewConfigView: View {
                                 .foregroundStyle(.green)
                                 .font(.system(size: 14))
                             Text("Merge complete")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.callout)
+                                .bold()
                         }
                         Text("\(mergeResult.recordCount) records in \(mergeResult.duration, format: .number.precision(.fractionLength(1)))s")
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
@@ -254,7 +254,8 @@ struct PreviewConfigView: View {
                         emailMergeResult(mergeResult)
                     } label: {
                         Label("Email Output", systemImage: "paperplane.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.callout)
+                            .bold()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                     }
@@ -274,7 +275,7 @@ struct PreviewConfigView: View {
                 Text(job.isConfigured
                     ? "All steps complete. Ready to generate your documents."
                     : "Complete all configuration steps before running.")
-                    .font(.system(size: 11))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
 
                 if isMerging {
@@ -284,7 +285,8 @@ struct PreviewConfigView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "xmark.circle.fill")
                             Text("Cancel Merge")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.callout)
+                                .bold()
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -298,7 +300,8 @@ struct PreviewConfigView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "play.fill")
                             Text("Start Merge")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.callout)
+                                .bold()
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -466,7 +469,6 @@ private struct MergeProgressView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            // Circular progress centered
             VStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -488,7 +490,8 @@ private struct MergeProgressView: View {
                         .animation(.spring(duration: 0.5), value: percentage)
                     
                     Text("\(Int(percentage * 100))%")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.title3)
+                        .bold()
                         .foregroundStyle(Color.mergeformBlue)
                         .monospacedDigit()
                 }
@@ -496,17 +499,18 @@ private struct MergeProgressView: View {
                 VStack(spacing: 4) {
                     HStack(spacing: 4) {
                         Text("\(current)")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.title2)
+                            .bold()
                             .foregroundStyle(.primary)
                             .monospacedDigit()
                         Text("/ \(total)")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                     
                     Text("records processed")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
                 
@@ -515,7 +519,8 @@ private struct MergeProgressView: View {
                         Image(systemName: "gauge.with.dots.needle.67percent")
                             .font(.system(size: 11))
                         Text("\(Int(rowsPerSecond)) rows/sec")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.caption)
+                            .bold()
                     }
                     .foregroundStyle(Color.mergeformOrange)
                     .padding(.top, 4)
@@ -523,27 +528,10 @@ private struct MergeProgressView: View {
             }
             .frame(maxWidth: .infinity)
             
-            // Progress bar
             VStack(spacing: 8) {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.primary.opacity(0.08))
-                            .frame(height: 8)
-                        
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.mergeformBlue, Color.mergeformOrange.opacity(0.8)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: geometry.size.width * percentage, height: 8)
-                            .animation(.spring(duration: 0.5), value: percentage)
-                    }
-                }
-                .frame(height: 8)
+                ProgressView(value: percentage)
+                    .tint(Color.mergeformOrange)
+                    .animation(.spring(duration: 0.5), value: percentage)
                 
                 HStack {
                     if let estimatedTimeRemaining, estimatedTimeRemaining > 0 {
@@ -551,7 +539,8 @@ private struct MergeProgressView: View {
                             Image(systemName: "clock.fill")
                                 .font(.system(size: 10))
                             Text(formatTimeRemaining(estimatedTimeRemaining))
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption)
+                                .bold()
                         }
                         .foregroundStyle(.secondary)
                     } else {
@@ -561,7 +550,7 @@ private struct MergeProgressView: View {
                     Spacer()
                     
                     Text("Processing…")
-                        .font(.system(size: 11))
+                        .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
             }

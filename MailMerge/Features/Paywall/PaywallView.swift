@@ -13,19 +13,44 @@ struct PaywallView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            paywallHeader
+
             SubscriptionShopView(
                 groupID: MailMergeProductIDs.subscriptionGroupID,
                 configuration: colorScheme == .dark ? .mailMergeProDark : .mailMergeProLight
             )
 
-            // Lifetime purchase option
             lifetimeSection
 
-            // Footer: Restore & Manage
             footerButtons
         }
         .frame(minWidth: 500, minHeight: 640)
         .background(paywallBackground)
+    }
+
+    private var paywallHeader: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "bolt.doc.fill")
+                .font(.title2)
+                .foregroundStyle(.white)
+                .frame(width: 48, height: 48)
+                .background(Color.mergeformBlue, in: .rect(cornerRadius: 12))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Mergeform Pro")
+                    .font(.title2)
+                    .bold()
+                    .foregroundStyle(Color.mergeformInk)
+                Text("Higher limits, faster document runs, and advanced output workflows.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(24)
+        .background(Color.mergeformPanel)
     }
 
     // MARK: - Lifetime Section
@@ -36,26 +61,17 @@ struct PaywallView: View {
                 .padding(.horizontal, 24)
 
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Image(systemName: "infinity.circle.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 44, height: 44)
+                Image(systemName: "infinity.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.mergeformOrange, in: .rect(cornerRadius: 10))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Lifetime Access")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.headline)
                     Text("One-time purchase — Pro forever, no subscription needed.")
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -92,7 +108,7 @@ struct PaywallView: View {
             Button("No thanks") { dismiss() }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .font(.system(size: 12))
+                .font(.callout)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 20)
@@ -104,13 +120,8 @@ struct PaywallView: View {
     private var paywallBackground: some View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
-            LinearGradient(
-                colors: [Color.accentColor.opacity(0.06), .clear],
-                startPoint: .top,
-                endPoint: .center
-            )
+            Color.mergeformBackground.opacity(0.65)
         }
         .ignoresSafeArea()
     }
 }
-

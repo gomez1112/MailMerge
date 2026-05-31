@@ -11,7 +11,7 @@ struct TemplateConfigView: View {
     @State private var isScanning = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(
                 title: "Template",
                 subtitle: "Choose a DOCX file with merge placeholders.",
@@ -62,7 +62,7 @@ struct TemplateConfigView: View {
                                 Label("Scan Template", systemImage: "wand.and.stars")
                             }
                         }
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .disabled(job.templateBookmarkData == nil || isScanning)
                     }
 
@@ -72,17 +72,17 @@ struct TemplateConfigView: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(.tertiary)
                             Text("Scan the template to discover merge fields.")
-                                .font(.system(size: 12))
+                                .font(.callout)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("\(detectedPlaceholders.count) field\(detectedPlaceholders.count == 1 ? "" : "s") found")
-                                .font(.system(size: 11))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                             FlowLayout(spacing: 6) {
-                                ForEach(Array(detectedPlaceholders.enumerated()), id: \.offset) { _, placeholder in
+                                ForEach(detectedPlaceholders.enumerated(), id: \.offset) { _, placeholder in
                                     PlaceholderTag(text: placeholder)
                                 }
                             }
@@ -96,7 +96,7 @@ struct TemplateConfigView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     CardLabel(title: "Supported Formats", systemImage: "info.circle")
                     Text("Use any of these placeholder styles in your DOCX template:")
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 8) {
                         ForEach(["{{Field}}", "<<Field>>", "${Field}", "[[Field]]"], id: \.self) { format in
@@ -116,6 +116,7 @@ struct TemplateConfigView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: [UTType(filenameExtension: "docx") ?? .data],
@@ -230,17 +231,18 @@ struct SelectedFileRow: View {
             FileIconView(systemImageName: systemImageName, color: color)
             VStack(alignment: .leading, spacing: 3) {
                 Text(fileName)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.callout)
+                    .bold()
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(size: 11))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Button("Change") {
                 onChangeTap()
             }
-            .font(.system(size: 12))
+            .font(.callout)
             .foregroundStyle(Color.mergeformBlue)
             .buttonStyle(.plain)
         }

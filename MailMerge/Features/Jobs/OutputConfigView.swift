@@ -12,7 +12,7 @@ struct OutputConfigView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(
                 title: "Output",
                 subtitle: "Choose where the generated PDFs will be saved.",
@@ -51,7 +51,7 @@ struct OutputConfigView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Pattern")
-                            .font(.system(size: 11))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         TextField("Pattern", text: $job.outputFileNamePattern)
                             .textFieldStyle(.roundedBorder)
@@ -60,10 +60,10 @@ struct OutputConfigView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Available tokens")
-                            .font(.system(size: 11))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         FlowLayout(spacing: 6) {
-                            ForEach(Array(availableTokens.enumerated()), id: \.offset) { _, token in
+                            ForEach(availableTokens.enumerated(), id: \.offset) { _, token in
                                 PlaceholderTag(text: token)
                             }
                         }
@@ -74,10 +74,11 @@ struct OutputConfigView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Text("Preview: ")
-                            .font(.system(size: 11))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(previewFileName)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.caption.monospaced())
+                            .bold()
                             .foregroundStyle(.primary)
                     }
                     .padding(.top, 2)
@@ -92,9 +93,9 @@ struct OutputConfigView: View {
                     Toggle(isOn: $job.combineIntoSinglePDF) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Combine into single PDF")
-                                .font(.system(size: 13))
+                                .font(.callout)
                             Text("Merges all records into one PDF document instead of individual files.")
-                                .font(.system(size: 11))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -103,6 +104,7 @@ struct OutputConfigView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fileImporter(
             isPresented: $showingFolderPicker,
             allowedContentTypes: [UTType.folder],
@@ -119,7 +121,7 @@ struct OutputConfigView: View {
 
     private var previewFileName: String {
         let base = job.outputFileNamePattern
-            .replacingOccurrences(of: "{Row}", with: "1")
+            .replacing("{Row}", with: "1")
         let sanitized = FileNameSanitizer.sanitize(base)
         return "\(sanitized).pdf"
     }

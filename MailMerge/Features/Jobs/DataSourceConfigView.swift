@@ -12,7 +12,7 @@ struct DataSourceConfigView: View {
     @State private var isLoadingSheets = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             SectionHeader(
                 title: "Data Source",
                 subtitle: "Pick an Excel spreadsheet and the sheet to merge.",
@@ -62,7 +62,7 @@ struct DataSourceConfigView: View {
                                 Label("Load Sheets", systemImage: "arrow.clockwise")
                             }
                         }
-                        .font(.system(size: 12))
+                        .font(.callout)
                         .disabled(job.dataSourceBookmarkData == nil || isLoadingSheets)
                     }
 
@@ -74,14 +74,14 @@ struct DataSourceConfigView: View {
                             Text(job.dataSourceBookmarkData == nil
                                 ? "Select a spreadsheet first."
                                 : "Click \"Load Sheets\" to discover available sheets.")
-                                .font(.system(size: 12))
+                                .font(.callout)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Select a sheet to merge:")
-                                .font(.system(size: 12))
+                                .font(.callout)
                                 .foregroundStyle(.secondary)
                             sheetSelector
                         }
@@ -100,7 +100,7 @@ struct DataSourceConfigView: View {
                                 ProgressView().controlSize(.mini)
                             }
                             Text("\(previewData.headers.count) columns · \(previewData.rows.count) rows shown")
-                                .font(.system(size: 11))
+                                .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
                         DataPreviewTable(headers: previewData.headers, rows: previewData.rows)
@@ -116,7 +116,7 @@ struct DataSourceConfigView: View {
                                 .foregroundStyle(.green)
                         }
                         Text(isLoadingPreview ? "Loading preview for \"\(sheetName)\"…" : "Sheet \"\(sheetName)\" selected.")
-                            .font(.system(size: 13))
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -124,6 +124,7 @@ struct DataSourceConfigView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fileImporter(
             isPresented: $showingImporter,
             allowedContentTypes: [UTType(filenameExtension: "xlsx") ?? .data],
@@ -139,7 +140,7 @@ struct DataSourceConfigView: View {
     // MARK: - Sheet Selector
 
     private var sheetSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(job.availableSheets, id: \.self) { sheet in
                     let isSelected = job.selectedSheetName == sheet
@@ -150,7 +151,8 @@ struct DataSourceConfigView: View {
                             Image(systemName: "tablecells")
                                 .font(.system(size: 10, weight: .medium))
                             Text(sheet)
-                                .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                                .font(.callout)
+                                .bold(isSelected)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
@@ -165,6 +167,7 @@ struct DataSourceConfigView: View {
                 }
             }
         }
+        .scrollIndicators(.hidden)
         .onChange(of: job.selectedSheetName) { _, newValue in
             guard let newValue else {
                 previewData = SheetData(headers: [], rows: [])
