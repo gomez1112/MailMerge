@@ -12,8 +12,30 @@ extension Notification.Name {
 
 // MARK: - Focused Values
 
+/// Focused value entries that expose context-sensitive job actions to menu commands.
+///
+/// These values let a focused view (such as the selected job in the sidebar) publish
+/// its delete and rename handlers up the focus chain so that `MailMergeCommands` can
+/// invoke them from the application's "Job" menu. When no view supplies a handler,
+/// the corresponding menu item is automatically disabled.
+///
+/// ## Publishing actions from a focused view
+/// ```swift
+/// SomeJobView()
+///     .focusedValue(\.deleteJobAction) { deleteSelectedJob() }
+///     .focusedValue(\.renameJobAction) { renameSelectedJob() }
+/// ```
 extension FocusedValues {
+    /// A closure invoked when the user chooses "Delete Job" (⌘⌫) from the menu bar.
+    ///
+    /// Set this value via `.focusedValue(\.deleteJobAction, …)` on the view that owns
+    /// the currently selected job. A `nil` value disables the menu item.
     @Entry var deleteJobAction: (() -> Void)? = nil
+
+    /// A closure invoked when the user chooses "Rename Job" (⌘R) from the menu bar.
+    ///
+    /// Set this value via `.focusedValue(\.renameJobAction, …)` on the view that owns
+    /// the currently selected job. A `nil` value disables the menu item.
     @Entry var renameJobAction: (() -> Void)? = nil
 }
 
