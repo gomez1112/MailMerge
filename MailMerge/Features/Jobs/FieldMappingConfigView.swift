@@ -109,18 +109,7 @@ struct FieldMappingConfigView: View {
 
     private func autoMatch() {
         isAutoMatching = true
-        let unmapped = job.fieldMappings.filter { $0.columnName == nil }
-        let matches = FieldAutoMatcher.matches(
-            fields: unmapped.map(\.displayName),
-            columns: job.availableColumns,
-            columnsInUse: Set(job.fieldMappings.compactMap(\.columnName))
-        )
-        for mapping in unmapped {
-            guard let match = matches[mapping.displayName] else { continue }
-            mapping.columnName = match.column
-            mapping.isAutoMatched = true
-            mapping.matchConfidence = match.confidence
-        }
+        job.autoMatchUnmappedFields()
         isAutoMatching = false
     }
 }

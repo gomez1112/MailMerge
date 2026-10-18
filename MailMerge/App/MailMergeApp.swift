@@ -215,15 +215,19 @@ struct AppSettingsView: View {
         .formStyle(.grouped)
     }
 
+    private var hasLifetimePurchase: Bool {
+        store.purchasedNonConsumables.contains(MailMergeProductIDs.lifetimePurchase)
+    }
+
     private var subscriptionTab: some View {
         Form {
             Section("Plan") {
                 LabeledContent("Status") {
                     HStack(spacing: 6) {
-                        if store.subscriptionTier >= .pro {
+                        if store.hasProAccess {
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(Color.accentColor)
-                            Text("Pro")
+                            Text(hasLifetimePurchase && store.subscriptionTier < .pro ? "Pro (Lifetime)" : "Pro")
                                 .foregroundStyle(.primary)
                         } else {
                             Text("Free")
@@ -249,8 +253,8 @@ struct AppSettingsView: View {
                     .controlSize(.regular)
             }
             Section("Legal") {
-                Link("Privacy Policy", destination: URL(string: "https://transfinite.us/policies/MergeformPrivacy/")!)
-                Link("Terms of Use", destination: URL(string: "https://transfinite.us/policies/MergeformTerms/")!)
+                Link("Privacy Policy", destination: MergeformLinks.privacyPolicy)
+                Link("Terms of Use", destination: MergeformLinks.termsOfUse)
             }
         }
         .formStyle(.grouped)

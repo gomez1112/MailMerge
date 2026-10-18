@@ -1,8 +1,8 @@
 import Foundation
 
 /// Suggests spreadsheet columns for template fields by comparing their names.
-enum FieldAutoMatcher {
-    struct Match: Equatable {
+nonisolated enum FieldAutoMatcher {
+    nonisolated struct Match: Equatable {
         var column: String
         var confidence: Double
     }

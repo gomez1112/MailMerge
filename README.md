@@ -28,8 +28,8 @@ Mergeform is a document automation app that lets you combine DOCX templates with
 - Security-scoped bookmark handling for macOS sandboxed file access
 
 ### Subscription
-- **Free tier:** up to 3 jobs
-- **Pro tier:** unlimited jobs, unlimited records, batch output, auto-matching, and all field transformations
+- **Free tier:** every feature, up to 3 jobs in total (deleting a job doesn't free a slot)
+- **Pro tier:** unlimited jobs
 - Monthly, annual, and lifetime purchase options via StoreKit 2
 
 ---

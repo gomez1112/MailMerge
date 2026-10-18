@@ -48,7 +48,6 @@ struct ContentView: View {
     @AppStorage("confirmBeforeDelete") private var confirmBeforeDelete = true
     @State private var jobPendingDeletion: MailMergeJob?
 
-    private let freeJobLimit = 3
 
     private var filteredJobs: [MailMergeJob] {
         guard !searchText.isEmpty else { return jobs }
@@ -140,7 +139,7 @@ struct ContentView: View {
                 }
             }
         } message: {
-            Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
+            Text(JobAllowance.limitReachedMessage)
         }
         .sheet(isPresented: $showingJobRename) {
             JobRenameView(name: jobRenameName, onSave: saveJobRename)
@@ -307,7 +306,7 @@ struct ContentView: View {
             }
             let category = categories.first(where: { $0.id == newJobCategoryID }) ?? uncategorizedCategory
             let jobName = newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Mergeform" : newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let job = MailMergeJob(name: jobName, category: category)
+            let job = MailMergeJob.makeNew(name: jobName, category: category)
             modelContext.insert(job)
             navigationPath = [job.id]
             showingNewJobSheet = false
@@ -360,11 +359,11 @@ struct ContentView: View {
     }
 
     private var hasProAccess: Bool {
-        store.subscriptionTier >= .pro || entitlementHasPro
+        store.hasProAccess || entitlementHasPro
     }
 
     private var canCreateJob: Bool {
-        hasProAccess || jobCreationCount < freeJobLimit
+        hasProAccess || jobCreationCount < JobAllowance.freeJobLimit
     }
 
     private func recordJobCreation() {
@@ -569,6 +568,7 @@ private struct CategoryHeaderView: View {
 
 private struct JobRowView: View {
     let job: MailMergeJob
+    @AppStorage("showRelativeDates") private var showRelativeDates = true
 
     private var iconColor: Color {
         switch job.status {
@@ -600,7 +600,7 @@ private struct JobRowView: View {
                 Text(job.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text("Modified \(job.modifiedAt, format: .relative(presentation: .named))")
+                Text(job.modifiedDescription(relative: showRelativeDates))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -623,7 +623,7 @@ private struct JobRowView: View {
                 .strokeBorder(Color.mergeformStroke)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(job.name), \(job.status.label), Modified \(job.modifiedAt, format: .relative(presentation: .named))")
+        .accessibilityLabel("\(job.name), \(job.status.label), \(job.modifiedDescription(relative: showRelativeDates))")
         .accessibilityHint("Double-tap to view and edit this job")
     }
 }

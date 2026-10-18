@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct DataSourceConfigView: View {
     @Environment(\.services) private var services
+    @AppStorage("autoMatchFields") private var autoMatchFields = true
     @Bindable var job: MailMergeJob
     let onError: (Error, (() -> Void)?) -> Void
 
@@ -138,7 +139,7 @@ struct DataSourceConfigView: View {
         .task {
             // Show the selected sheet's preview again when returning to this step.
             if let sheetName = job.selectedSheetName, previewData.headers.isEmpty {
-                loadPreview(sheetName: sheetName)
+                loadPreview(sheetName: sheetName, matchesFields: false)
             }
         }
     }
@@ -179,7 +180,7 @@ struct DataSourceConfigView: View {
                 job.availableColumns = []
                 return
             }
-            loadPreview(sheetName: newValue)
+            loadPreview(sheetName: newValue, matchesFields: autoMatchFields)
         }
     }
 
@@ -237,7 +238,9 @@ struct DataSourceConfigView: View {
         }
     }
 
-    private func loadPreview(sheetName: String) {
+    /// Loads a sheet's first rows and columns. `matchesFields` auto-matches unmapped
+    /// fields to the columns, for when the user has just chosen the sheet.
+    private func loadPreview(sheetName: String, matchesFields: Bool) {
         guard let bookmarkData = job.dataSourceBookmarkData else { return }
         isLoadingPreview = true
         Task {
@@ -251,13 +254,16 @@ struct DataSourceConfigView: View {
                 guard job.selectedSheetName == sheetName else { return }
                 previewData = preview
                 job.updateAvailableColumns(preview.headers)
+                if matchesFields {
+                    job.autoMatchUnmappedFields()
+                }
             } catch {
                 // A sheet that can't be read can't be merged, so don't leave it selected
                 // with the previous sheet's preview and columns.
                 if job.selectedSheetName == sheetName {
                     job.selectedSheetName = nil
                 }
-                onError(error, { loadPreview(sheetName: sheetName) })
+                onError(error, { loadPreview(sheetName: sheetName, matchesFields: matchesFields) })
             }
             isLoadingPreview = false
         }

@@ -16,10 +16,50 @@ extension MailMergeJob {
 
     var hasOutputFolder: Bool { outputFolderBookmarkData != nil }
 
+    /// A new job that uses the default file name pattern from Settings.
+    static func makeNew(name: String, category: Category?, defaults: UserDefaults = .standard) -> MailMergeJob {
+        let job = MailMergeJob(name: name, category: category)
+        if let pattern = defaults.string(forKey: "defaultOutputPattern")?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !pattern.isEmpty {
+            job.outputFileNamePattern = pattern
+        }
+        return job
+    }
+
+    /// When the job was last changed, for the job list: relative ("2 hours ago") or the
+    /// date and time, per the "Show relative dates" setting.
+    func modifiedDescription(relative: Bool, relativeTo now: Date = .now) -> String {
+        if relative {
+            let style = Date.AnchoredRelativeFormatStyle(anchor: now, presentation: .named)
+            return "Modified \(style.format(modifiedAt))"
+        }
+        return "Modified \(modifiedAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    /// Maps fields without a column to the best-matching columns.
+    func autoMatchUnmappedFields() {
+        autoMatch(fieldMappings.filter { !$0.isMapped })
+    }
+
+    private func autoMatch(_ mappings: [FieldMapping]) {
+        guard !availableColumns.isEmpty, !mappings.isEmpty else { return }
+        let matches = FieldAutoMatcher.matches(
+            fields: mappings.map(\.displayName),
+            columns: availableColumns,
+            columnsInUse: Set(fieldMappings.compactMap(\.columnName))
+        )
+        for mapping in mappings {
+            guard let match = matches[mapping.displayName] else { continue }
+            mapping.columnName = match.column
+            mapping.isAutoMatched = true
+            mapping.matchConfidence = match.confidence
+        }
+    }
+
     /// Updates the field list after scanning the template: keeps fields the template
     /// still uses (with their columns), adds new ones, and removes the rest. Fields that
     /// differ only by surrounding spaces count as one.
-    func syncFieldMappings(with placeholders: [String], in context: ModelContext?) {
+    func syncFieldMappings(with placeholders: [String], in context: ModelContext?, autoMatch: Bool = false) {
         let fields = Set(
             placeholders
                 .map { TemplatePlaceholders.fieldName(for: $0) }
@@ -54,8 +94,14 @@ extension MailMergeJob {
             fieldMappings.removeAll { $0 === mapping }
             context?.delete(mapping)
         }
+        var added: [FieldMapping] = []
         for field in fields.sorted() where keptByField[field] == nil {
-            fieldMappings.append(FieldMapping(placeholderText: field, job: self))
+            let mapping = FieldMapping(placeholderText: field, job: self)
+            fieldMappings.append(mapping)
+            added.append(mapping)
+        }
+        if autoMatch {
+            self.autoMatch(added)
         }
     }
 

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct TemplateConfigView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.services) private var services
+    @AppStorage("autoMatchFields") private var autoMatchFields = true
     @Bindable var job: MailMergeJob
     let onError: (Error, (() -> Void)?) -> Void
 
@@ -188,7 +189,7 @@ struct TemplateConfigView: View {
     }
 
     private func syncMappings(with placeholders: [String]) {
-        job.syncFieldMappings(with: placeholders, in: modelContext)
+        job.syncFieldMappings(with: placeholders, in: modelContext, autoMatch: autoMatchFields)
     }
 }
 

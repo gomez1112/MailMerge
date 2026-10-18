@@ -183,7 +183,6 @@ private struct TemplateLibraryView: View {
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
 
-    private let freeJobLimit = 3
 
     init(onOpenJobs: @escaping (UUID) -> Void) {
         self.onOpenJobs = onOpenJobs
@@ -283,7 +282,7 @@ private struct TemplateLibraryView: View {
                 }
             }
         } message: {
-            Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
+            Text(JobAllowance.limitReachedMessage)
         }
         .onAppear(perform: refreshEntitlementFallback)
         .onAppear(perform: startEntitlementObserver)
@@ -326,7 +325,7 @@ private struct TemplateLibraryView: View {
         }
         let bookmarkData = try SecurityScopedAccess.makeBookmark(for: url)
         let category = uncategorizedCategory
-        let job = MailMergeJob(name: "New Mergeform", category: category)
+        let job = MailMergeJob.makeNew(name: "New Mergeform", category: category)
         job.templateBookmarkData = bookmarkData
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()
@@ -341,7 +340,7 @@ private struct TemplateLibraryView: View {
             return nil
         }
         let category = uncategorizedCategory
-        let job = MailMergeJob(name: "New Mergeform", category: category)
+        let job = MailMergeJob.makeNew(name: "New Mergeform", category: category)
         job.templateBookmarkData = item.bookmarkData
         job.templateFileName = item.fileName
         job.modifiedAt = Date()
@@ -361,11 +360,11 @@ private struct TemplateLibraryView: View {
     }
 
     private var hasProAccess: Bool {
-        store.subscriptionTier >= .pro || entitlementHasPro
+        store.hasProAccess || entitlementHasPro
     }
 
     private var canCreateJob: Bool {
-        hasProAccess || jobCreationCount < freeJobLimit
+        hasProAccess || jobCreationCount < JobAllowance.freeJobLimit
     }
 
     private func recordJobCreation() {
