@@ -7,8 +7,24 @@ import AppKit
 
 // MARK: - Focused Values
 
+/// Focused values that expose context-sensitive actions to menu commands.
+///
+/// The focused window and the job it shows publish command objects up the focus chain,
+/// so `MailMergeCommands` can run them from the File and Job menus. When no view
+/// supplies one, the matching menu items are disabled.
+///
+/// ## Publishing commands from a focused view
+/// ```swift
+/// jobContent
+///     .focusedSceneValue(\.jobCommands, FocusedJobCommands(jobID: job.id, router: jobCommandRouter))
+/// ```
 extension FocusedValues {
+    /// Rename and delete for the job shown in the focused window, for the Job menu's
+    /// Rename Job (⌘R) and Delete Job (⌘⌫). Nil when no job is shown.
     @Entry var jobCommands: FocusedJobCommands? = nil
+
+    /// Window-level actions, such as New Job (⌘N) in the File menu. Nil when no
+    /// Mergeform window is focused.
     @Entry var windowCommands: FocusedWindowCommands? = nil
 }
 
