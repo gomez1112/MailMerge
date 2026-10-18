@@ -30,8 +30,10 @@ extension MailMergeJob {
     /// date and time, per the "Show relative dates" setting.
     func modifiedDescription(relative: Bool, relativeTo now: Date = .now) -> String {
         if relative {
-            let style = Date.AnchoredRelativeFormatStyle(anchor: now, presentation: .named)
-            return "Modified \(style.format(modifiedAt))"
+            // The anchored style describes its anchor relative to the date it formats, so
+            // the modification date is the anchor and "now" is what's formatted.
+            let style = Date.AnchoredRelativeFormatStyle(anchor: modifiedAt, presentation: .named)
+            return "Modified \(style.format(now))"
         }
         return "Modified \(modifiedAt.formatted(date: .abbreviated, time: .shortened))"
     }

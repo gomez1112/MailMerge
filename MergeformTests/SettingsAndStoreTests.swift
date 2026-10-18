@@ -55,6 +55,16 @@ struct SettingsTests {
         #expect(text == "Modified \(date.formatted(date: .abbreviated, time: .shortened))")
     }
 
+    @Test("Relative dates describe the past as past")
+    func relativeDatesPointBackward() throws {
+        try #require(Locale.current.language.languageCode == .english, "Checks English wording")
+        let job = MailMergeJob(name: "Letters")
+        let date = Date(timeIntervalSince1970: 1_704_067_200)
+        job.modifiedAt = date
+        let text = job.modifiedDescription(relative: true, relativeTo: date.addingTimeInterval(3 * 86_400))
+        #expect(text == "Modified 3 days ago")
+    }
+
     @Test("With auto-match on, newly scanned fields are matched to columns")
     func autoMatchOnScan() throws {
         let schema = Schema(versionedSchema: MailMergeSchemaV3.self)
