@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import FlexStore
+import KickstartSignal
 import AppKit
 import StoreKit
 
@@ -42,6 +43,10 @@ struct MainTabView: View {
                 Label("Templates", systemImage: "richtext.page")
                     .tag(SidebarDestination.templates)
             }
+            Section("Feedback") {
+                Label("Feature Requests", systemImage: "lightbulb")
+                    .tag(SidebarDestination.featureRequests)
+            }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .top) {
@@ -71,6 +76,11 @@ struct MainTabView: View {
                 withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
                     selection = .jobs
                 }
+            }
+        case .featureRequests:
+            // The board pushes its request details and suggestion form onto this stack.
+            NavigationStack {
+                SignalBoardView(apiKey: "ks_live_oiOXxPHxxpQT2eV42Z-LAVU4oTCahb_AUiLTpQ7vcuU")
             }
         }
     }
@@ -103,6 +113,7 @@ private struct SidebarBrandHeader: View {
 private enum SidebarDestination: Hashable {
     case jobs
     case templates
+    case featureRequests
 }
 
 // MARK: - Template Library View

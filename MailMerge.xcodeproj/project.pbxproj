@@ -11,6 +11,7 @@
 		CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2DC2F42956B0027CF92 /* FlexStore */; };
 		CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2E22F42959C0027CF92 /* OnboardingKit */; };
 		CC9E51A32F9B3C0000A1B201 /* KickstartExchange in Frameworks */ = {isa = PBXBuildFile; productRef = CC9E51A22F9B3C0000A1B201 /* KickstartExchange */; };
+		CC9E51A62F9B3C0000A1B201 /* KickstartSignal in Frameworks */ = {isa = PBXBuildFile; productRef = CC9E51A52F9B3C0000A1B201 /* KickstartSignal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 				CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */,
 				CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */,
 				CC9E51A32F9B3C0000A1B201 /* KickstartExchange in Frameworks */,
+				CC9E51A62F9B3C0000A1B201 /* KickstartSignal in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +140,7 @@
 				CC6CE2DC2F42956B0027CF92 /* FlexStore */,
 				CC6CE2E22F42959C0027CF92 /* OnboardingKit */,
 				CC9E51A22F9B3C0000A1B201 /* KickstartExchange */,
+				CC9E51A52F9B3C0000A1B201 /* KickstartSignal */,
 			);
 			productName = MailMerge;
 			productReference = CC87A4E52F34A5FE00EBE819 /* Mergeform.app */;
@@ -589,6 +592,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CC9E51A12F9B3C0000A1B201 /* XCRemoteSwiftPackageReference "KickstartSDK" */;
 			productName = KickstartExchange;
+		};
+		CC9E51A52F9B3C0000A1B201 /* KickstartSignal */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC9E51A12F9B3C0000A1B201 /* XCRemoteSwiftPackageReference "KickstartSDK" */;
+			productName = KickstartSignal;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

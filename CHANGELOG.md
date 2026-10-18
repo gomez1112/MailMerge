@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Version 1.2.1 (in progress): a Kickstart Exchange cross-promotion banner at the bottom of the Jobs list for free users. Pro customers, including lifetime buyers, never see it.
+- Feature Requests in the sidebar: a Kickstart Signal board where people can suggest features, vote, and comment. Submissions stay private until approved in the Signal dashboard. The app doesn't send premium status.
+- The What's New sheet highlights Feature Requests.
 
 ### Changed
-- The app can make outgoing network connections, which Kickstart Exchange needs to load its banner. Incoming connections stay off.
+- The app can make outgoing network connections, which Kickstart Exchange and Signal need to load the banner and the feature request board. Incoming connections stay off.
 - The App Store age rating declares advertising.
 
 ## [1.2.0] - 2026-10-17

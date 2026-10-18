@@ -53,6 +53,12 @@ extension FeatureItem {
     static var mailMergeFeatures: [FeatureItem] {
         [
             FeatureItem(
+                title: "Suggest Features",
+                description: "Choose Feature Requests in the sidebar to share an idea, vote for the ones you want most, and see what’s planned.",
+                systemImage: "lightbulb.fill",
+                iconColor: .mergeformOrange
+            ),
+            FeatureItem(
                 title: "A Fresh New Look",
                 description: "A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting.",
                 systemImage: "sparkles",
