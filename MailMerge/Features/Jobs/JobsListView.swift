@@ -6,6 +6,7 @@ import StoreKit
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StoreKitService<MailMergeTier>.self) private var store
+    @Environment(MergeRunStore.self) private var mergeRuns
 
     init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false)) {
         _pendingJobID = pendingJobID
@@ -342,6 +343,8 @@ struct ContentView: View {
     }
 
     private func deleteJob(_ job: MailMergeJob) {
+        // Stop the job's merge so it doesn't keep writing files for a deleted job.
+        mergeRuns.cancel(jobID: job.id)
         modelContext.delete(job)
         navigationPath.removeAll(where: { $0 == job.id })
     }

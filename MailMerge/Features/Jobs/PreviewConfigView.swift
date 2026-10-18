@@ -3,6 +3,7 @@ import AppKit
 
 struct PreviewConfigView: View {
     @Environment(\.services) private var services
+    @Environment(MergeRunStore.self) private var mergeRuns
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable var job: MailMergeJob
 
@@ -12,19 +13,17 @@ struct PreviewConfigView: View {
     @State private var totalRecordCount = 0
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
-    @State private var mergeProgress: (current: Int, total: Int) = (0, 0)
-    @State private var mergeStartTime: Date?
-    @State private var estimatedTimeRemaining: TimeInterval?
-    @State private var mergeResult: MergeResult?
-    @State private var isMerging = false
     @State private var showingEmailError = false
     @State private var emailErrorMessage = ""
     @State private var emailRecipient = ""
     @State private var emailSubject = "Merged Documents"
     @State private var emailBody = "Hi,\n\nAttached are the merged documents.\n\nThanks!"
     @State private var sendAfterMerge = false
-    @State private var mergeProgressTracker: Progress?
-    @State private var mergeTask: Task<Void, Never>?
+
+    /// This job's latest merge, which outlives this view.
+    private var run: MergeRun? {
+        mergeRuns.run(for: job.id)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -205,63 +204,76 @@ struct PreviewConfigView: View {
                         )
                 }
 
-                if isMerging && mergeProgress.total == 0 {
-                    // Loading state before first progress update
-                    VStack(spacing: 8) {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Loading data…")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 8)
+                if let run {
+                    mergeStatus(for: run)
                 }
-                
-                if mergeProgress.total > 0 {
-                    Divider()
-                        .padding(.vertical, 4)
-                    
-                    MergeProgressView(
-                        current: mergeProgress.current,
-                        total: mergeProgress.total,
-                        startTime: mergeStartTime,
-                        estimatedTimeRemaining: estimatedTimeRemaining
-                    )
-                }
+            }
+        }
+    }
 
-                if let mergeResult {
-                    Divider()
-                        .padding(.vertical, 4)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.system(size: 14))
-                            Text("Merge complete")
-                                .font(.callout)
-                                .bold()
-                        }
-                        Text("\(mergeResult.recordCount) records in \(mergeResult.duration, format: .number.precision(.fractionLength(1)))s")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+    @ViewBuilder
+    private func mergeStatus(for run: MergeRun) -> some View {
+        if run.isActive {
+            if run.progress.total == 0 {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(run.isCancelling ? "Stopping…" : "Loading data…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
+            } else {
+                Divider()
                     .padding(.vertical, 4)
-                    
-                    Button {
-                        emailMergeResult(mergeResult)
-                    } label: {
-                        Label("Email Output", systemImage: "paperplane.fill")
+                MergeProgressView(
+                    current: run.progress.completed,
+                    total: run.progress.total,
+                    recordsPerSecond: run.recordsPerSecond,
+                    estimatedTimeRemaining: run.estimatedTimeRemaining,
+                    isStopping: run.isCancelling
+                )
+            }
+        } else if let outcome = run.outcome {
+            Divider()
+                .padding(.vertical, 4)
+            switch outcome {
+            case .completed(let result):
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.system(size: 14))
+                        Text("Merge complete")
                             .font(.callout)
                             .bold()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(mergeResult.attachmentURL == nil)
+                    Text("\(result.recordCount) records in \(result.duration, format: .number.precision(.fractionLength(1)))s")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.vertical, 4)
+
+                Button {
+                    emailMergeResult(result)
+                } label: {
+                    Label("Email Output", systemImage: "paperplane.fill")
+                        .font(.callout)
+                        .bold()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.bordered)
+                .disabled(result.attachmentURL == nil)
+            case .failed(let message):
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .cancelled:
+                Label("Merge cancelled.", systemImage: "xmark.circle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -289,13 +301,13 @@ struct PreviewConfigView: View {
                     .foregroundStyle(.orange)
                 }
 
-                if isMerging {
+                if let run, run.isActive {
                     Button {
-                        cancelMerge()
+                        run.cancel()
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "xmark.circle.fill")
-                            Text("Cancel Merge")
+                            Text(run.isCancelling ? "Stopping…" : "Cancel Merge")
                                 .font(.callout)
                                 .bold()
                         }
@@ -304,6 +316,7 @@ struct PreviewConfigView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(.red)
+                    .disabled(run.isCancelling)
                 } else {
                     Button {
                         startMerge()
@@ -354,63 +367,14 @@ struct PreviewConfigView: View {
     }
 
     private func startMerge() {
-        mergeProgress = (0, 0)
-        mergeResult = nil
-        isMerging = true
-        mergeStartTime = Date()
-        estimatedTimeRemaining = nil
-        
-        // Create NSProgress for cancellation support
-        let progressTracker = Progress(totalUnitCount: 100)
-        progressTracker.localizedDescription = "Merging documents"
-        mergeProgressTracker = progressTracker
-        
-        let task = Task {
-            do {
-                let result = try await services.mergeEngine.performMerge(
-                    job: job,
-                    singleDocument: job.combineIntoSinglePDF,
-                    progress: { current, total in
-                        mergeProgress = (current, total)
-                        
-                        // Calculate estimated time remaining
-                        if let startTime = mergeStartTime, current > 0 {
-                            let elapsed = Date().timeIntervalSince(startTime)
-                            let rate = Double(current) / elapsed
-                            let remaining = Double(total - current) / rate
-                            estimatedTimeRemaining = remaining
-                        }
-                    },
-                    nsProgress: progressTracker
-                )
-                await MainActor.run {
-                    mergeResult = result
-                    isMerging = false
-                    mergeProgressTracker = nil
-                    mergeTask = nil
-                    if sendAfterMerge {
-                        emailMergeResult(result)
-                    }
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    errorMessage = "Merge operation was cancelled"
-                    showingErrorAlert = true
-                    isMerging = false
-                    mergeProgressTracker = nil
-                    mergeTask = nil
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showingErrorAlert = true
-                    isMerging = false
-                    mergeProgressTracker = nil
-                    mergeTask = nil
-                }
+        // Capture the email now: the merge can finish after this step is closed.
+        let draft = sendAfterMerge ? emailDraft : nil
+        mergeRuns.start(job: job, singleDocument: job.combineIntoSinglePDF, engine: services.mergeEngine) { result in
+            if let draft {
+                // Failures here can only be noticed when the step is open to show them.
+                _ = Self.send(result, draft: draft)
             }
         }
-        mergeTask = task
     }
 
     private var hasPreview: Bool { previewData != nil }
@@ -418,48 +382,38 @@ struct PreviewConfigView: View {
     private var unmappedFieldCount: Int {
         job.fieldMappings.count - job.mappedFieldCount
     }
-    
-    private func cancelMerge() {
-        mergeProgressTracker?.cancel()
-        mergeTask?.cancel()
-        mergeProgress = (0, 0)
-        isMerging = false
-        mergeProgressTracker = nil
-        mergeTask = nil
-    }
 
-    private func makeEmailAttachment(from result: MergeResult) -> EmailAttachment? {
-        guard let url = result.attachmentURL else { return nil }
-        let ext = url.pathExtension.lowercased()
-        let mimeType = ext == "zip" ? "application/zip" : "application/pdf"
-        return EmailAttachment(
-            url: url,
-            filename: url.lastPathComponent,
-            mimeType: mimeType
-        )
+    private var emailDraft: EmailDraft {
+        EmailDraft(recipient: emailRecipient, subject: emailSubject, body: emailBody)
     }
 
     private func emailMergeResult(_ result: MergeResult) {
-        guard let attachment = makeEmailAttachment(from: result) else {
-            emailErrorMessage = "No output file is available to attach."
-            showingEmailError = true
-            return
-        }
-        let service = NSSharingService(named: .composeEmail)
-        service?.recipients = emailRecipient.isEmpty ? [] : [emailRecipient]
-        service?.subject = emailSubject
-        service?.perform(withItems: [emailBody, attachment.url])
-        if service == nil {
-            emailErrorMessage = "No email sharing service is available."
+        if let problem = Self.send(result, draft: emailDraft) {
+            emailErrorMessage = problem
             showingEmailError = true
         }
     }
+
+    /// Opens a new email with the merge's output attached. Returns a description of the
+    /// problem when it can't.
+    private static func send(_ result: MergeResult, draft: EmailDraft) -> String? {
+        guard let attachmentURL = result.attachmentURL else {
+            return "No output file is available to attach."
+        }
+        guard let service = NSSharingService(named: .composeEmail) else {
+            return "No email sharing service is available."
+        }
+        service.recipients = draft.recipient.isEmpty ? [] : [draft.recipient]
+        service.subject = draft.subject
+        service.perform(withItems: [draft.body, attachmentURL])
+        return nil
+    }
 }
 
-private struct EmailAttachment {
-    let url: URL
-    let filename: String
-    let mimeType: String
+private struct EmailDraft {
+    var recipient: String
+    var subject: String
+    var body: String
 }
 
 // MARK: - Merge Progress View
@@ -467,19 +421,13 @@ private struct EmailAttachment {
 private struct MergeProgressView: View {
     let current: Int
     let total: Int
-    let startTime: Date?
+    let recordsPerSecond: Double?
     let estimatedTimeRemaining: TimeInterval?
-    
+    let isStopping: Bool
+
     private var percentage: Double {
         guard total > 0 else { return 0 }
         return Double(current) / Double(total)
-    }
-    
-    private var rowsPerSecond: Double? {
-        guard let startTime, current > 0 else { return nil }
-        let elapsed = Date().timeIntervalSince(startTime)
-        guard elapsed > 0 else { return nil }
-        return Double(current) / elapsed
     }
     
     var body: some View {
@@ -529,11 +477,11 @@ private struct MergeProgressView: View {
                         .foregroundStyle(.tertiary)
                 }
                 
-                if let rowsPerSecond {
+                if let recordsPerSecond {
                     HStack(spacing: 6) {
                         Image(systemName: "gauge.with.dots.needle.67percent")
                             .font(.system(size: 11))
-                        Text("\(Int(rowsPerSecond)) rows/sec")
+                        Text("\(Int(recordsPerSecond)) rows/sec")
                             .font(.caption)
                             .bold()
                     }
@@ -564,7 +512,7 @@ private struct MergeProgressView: View {
                     
                     Spacer()
                     
-                    Text("Processing…")
+                    Text(isStopping ? "Stopping…" : "Processing…")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

@@ -17,6 +17,7 @@ extension FocusedValues {
 @main
 struct MailMergeApp: App {
     @State private var loadError: Error?
+    @State private var mergeRuns = MergeRunStore()
     private let container: ModelContainer?
     private let store = StoreKitService<MailMergeTier>()
 
@@ -75,6 +76,7 @@ struct MailMergeApp: App {
                 ) {
                     MainTabView()
                         .modelContainer(container)
+                        .environment(mergeRuns)
                         .environment(\.services, ServiceContainer.shared)
                         .frame(minWidth: 1200, idealWidth: 1400, maxWidth: 1800, minHeight: 740, idealHeight: 840)
                         .attachStoreKit(

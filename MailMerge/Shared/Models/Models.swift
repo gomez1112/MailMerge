@@ -351,6 +351,12 @@ struct MergeResult {
     let duration: TimeInterval
 }
 
+/// How far a merge has come. `total` is zero while the data is still loading.
+struct MergeProgress: Equatable {
+    var completed: Int
+    var total: Int
+}
+
 enum MergeStep: Int, CaseIterable, Identifiable {
     case template
     case dataSource

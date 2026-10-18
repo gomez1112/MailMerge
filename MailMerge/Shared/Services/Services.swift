@@ -1,6 +1,7 @@
 import Foundation
 import ZIPFoundation
 import PDFKit
+import SwiftData
 import SwiftUI
 import CoreText
 import AppKit
@@ -123,6 +124,14 @@ actor ExcelParserService {
 
 @MainActor
 final class PDFGeneratorService {
+    /// Where text and the header picture go on every page of a document.
+    struct PageLayout {
+        var pageSize: CGSize
+        var textRect: CGRect
+        var headerImage: PlatformImage?
+        var headerRect: CGRect?
+    }
+
     func generatePDF(
         from attributedString: NSAttributedString,
         pageSize: CGSize,
@@ -145,57 +154,25 @@ final class PDFGeneratorService {
     ) throws -> Data {
         try generatePDF(pages: [attributedString], pageSize: pageSize, margins: margins, headerImage: headerImage)
     }
-    
-    /// Async version of generatePDF that yields cooperatively during processing
-    func generatePDFAsync(
-        from attributedString: NSAttributedString,
-        pageSize: CGSize,
-        margins: EdgeInsets,
-        headerImage: DOCXHeaderImage?
-    ) async throws -> Data {
-        // Yield before starting to allow UI to update
-        await Task.yield()
-        
-        let data = try generatePDF(
-            from: attributedString,
-            pageSize: pageSize,
-            margins: margins,
-            headerImage: headerImage
-        )
-        
-        // Yield after completion to allow UI to process the result
-        await Task.yield()
-        
-        return data
-    }
-    
-    /// Async version for multiple pages with cooperative yielding
-    func generatePDFAsync<S: Sequence>(
-        pages: S,
-        pageSize: CGSize,
-        margins: EdgeInsets,
-        headerImage: DOCXHeaderImage?
-    ) async throws -> Data where S.Element == NSAttributedString {
-        await Task.yield()
-        
-        let data = try generatePDF(
-            pages: pages,
-            pageSize: pageSize,
-            margins: margins,
-            headerImage: headerImage
-        )
-        
-        await Task.yield()
-        
-        return data
-    }
 
     func generatePDF<S: Sequence>(
         pages: S,
         pageSize: CGSize,
         margins: EdgeInsets,
-        headerImage headerPicture: DOCXHeaderImage?
+        headerImage: DOCXHeaderImage?
     ) throws -> Data where S.Element == NSAttributedString {
+        let layout = layout(pageSize: pageSize, margins: margins, headerImage: headerImage)
+        let pdfDocument = PDFDocument()
+        for page in pages {
+            appendPages(of: page, to: pdfDocument, layout: layout)
+        }
+        guard let data = pdfDocument.dataRepresentation() else {
+            throw MergeError.pdfGenerationFailed
+        }
+        return data
+    }
+
+    func layout(pageSize: CGSize, margins: EdgeInsets, headerImage headerPicture: DOCXHeaderImage?) -> PageLayout {
         let baseTextRect = CGRect(
             x: margins.leading,
             y: margins.top,
@@ -206,7 +183,7 @@ final class PDFGeneratorService {
         let headerRect = headerImage.map { image in
             Self.headerFrame(imageSize: headerPicture?.size ?? image.size, pageSize: pageSize, margins: margins)
         }
-        let textRect: CGRect
+        var textRect = baseTextRect
         if let headerRect, !headerRect.isEmpty {
             let topInset = max(baseTextRect.minY, headerRect.maxY + 12)
             textRect = CGRect(
@@ -216,24 +193,20 @@ final class PDFGeneratorService {
                 // A zero-height container would lay all text out below the page.
                 height: max(pageSize.height - topInset - margins.bottom, Self.minimumTextHeight)
             )
-        } else {
-            textRect = baseTextRect
         }
-        let pdfDocument = PDFDocument()
-        for page in pages {
-            renderAttributedString(
-                page,
-                pdfDocument: pdfDocument,
-                pageSize: pageSize,
-                textRect: textRect,
-                headerImage: headerImage,
-                headerRect: headerRect
-            )
-        }
-        guard let data = pdfDocument.dataRepresentation() else {
-            throw MergeError.pdfGenerationFailed
-        }
-        return data
+        return PageLayout(pageSize: pageSize, textRect: textRect, headerImage: headerImage, headerRect: headerRect)
+    }
+
+    /// Lays out one record's text and appends its pages to `document`.
+    func appendPages(of attributedString: NSAttributedString, to document: PDFDocument, layout: PageLayout) {
+        renderAttributedString(
+            attributedString,
+            pdfDocument: document,
+            pageSize: layout.pageSize,
+            textRect: layout.textRect,
+            headerImage: layout.headerImage,
+            headerRect: layout.headerRect
+        )
     }
 
     private func renderAttributedString(
@@ -395,8 +368,7 @@ final class MergeEngine {
         let rowData = Self.rowData(headers: sheet.headers, row: row)
         let attributedString = Self.merge(template: templateText.value, rowData: rowData, mappings: mappingSnapshots)
         
-        // Use async version for better UI responsiveness
-        let data = try await pdfGenerator.generatePDFAsync(
+        let data = try pdfGenerator.generatePDF(
             from: attributedString,
             pageSize: page.size,
             margins: page.margins,
@@ -405,15 +377,19 @@ final class MergeEngine {
         return (data, totalRecords)
     }
 
+    /// Runs a merge, writing a PDF for each record (or one combined PDF) to the job's
+    /// output folder.
+    ///
+    /// Cancelling the calling task stops the merge before the next record. The job then
+    /// keeps the status it had before the merge, and a combined PDF isn't written. The
+    /// work runs on the main actor, which text layout and PDF drawing require, and pauses
+    /// between records so the app stays responsive.
     func performMerge(
         job: MailMergeJob,
         singleDocument: Bool,
-        progress: @escaping @Sendable @MainActor (Int, Int) -> Void,
-        nsProgress: Progress? = nil
+        progress: (MergeProgress) -> Void
     ) async throws -> MergeResult {
-        let start = Date()
-        
-        // Prevent system sleep/app nap during long-running merge
+        // Keep the Mac awake and out of App Nap during a long merge.
         let activity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "Performing mail merge operation"
@@ -421,7 +397,7 @@ final class MergeEngine {
         defer {
             ProcessInfo.processInfo.endActivity(activity)
         }
-        
+
         job.refreshStaleBookmarks()
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
@@ -434,180 +410,39 @@ final class MergeEngine {
             throw MergeError.outputAccessDenied
         }
 
-        await MainActor.run {
-            job.status = .running
-            job.lastRunDate = Date()
-            job.lastRunRecordCount = nil
-        }
+        let previousStatus = job.status
+        let previousRunDate = job.lastRunDate
+        let previousRecordCount = job.lastRunRecordCount
+        job.status = .running
+        job.lastRunDate = Date()
+        job.lastRunRecordCount = nil
 
         do {
-            let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
-            let headerImage = await docxParser.headerImage(bookmarkData: templateBookmarkData)
-            let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
-            let dataRows = filteredRows(sheet.rows)
-            let totalRecords = dataRows.count
-            guard totalRecords > 0 else { throw MergeError.noRecords }
-            
-            // Set up NSProgress if provided
-            let progressTracker = nsProgress ?? Progress(totalUnitCount: Int64(totalRecords))
-            progressTracker.localizedDescription = "Merging documents"
-            progressTracker.localizedAdditionalDescription = "Processing 0 of \(totalRecords) records"
-
-            let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
-            let jobName = job.name
-            let filePattern = job.outputFileNamePattern
-            let page = Self.pageSetup(for: templateText)
-            let pageSize = page.size
-            let margins = page.margins
-
-            let outputURL: URL?
-            let attachmentURL: URL?
-            let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
-            defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
-            
-            // Update UI every 10 records or 0.1 seconds to avoid overwhelming the main thread
-            let progressUpdateInterval = max(1, totalRecords / 100) // Update ~100 times total
-            var lastProgressUpdate = Date()
-            
-            if singleDocument {
-                // For single document mode, we need to generate all pages at once
-                // But we can still yield between data preparation and PDF generation
-                var attributedPages: [NSAttributedString] = []
-                
-                for (index, row) in dataRows.enumerated() {
-                    // Check for cancellation
-                    if progressTracker.isCancelled {
-                        throw CancellationError()
-                    }
-                    
-                    let rowData = Self.rowData(headers: sheet.headers, row: row)
-                    let mergedText = Self.merge(
-                        template: templateText.value,
-                        rowData: rowData,
-                        mappings: mappings
-                    )
-                    attributedPages.append(mergedText)
-                    
-                    let currentIndex = index + 1
-                    let shouldUpdate = currentIndex % progressUpdateInterval == 0 
-                        || currentIndex == totalRecords 
-                        || Date().timeIntervalSince(lastProgressUpdate) > 0.1
-                    
-                    if shouldUpdate {
-                        lastProgressUpdate = Date()
-                        await MainActor.run {
-                            progress(currentIndex, totalRecords)
-                            progressTracker.completedUnitCount = Int64(currentIndex)
-                            progressTracker.localizedAdditionalDescription = "Preparing \(currentIndex) of \(totalRecords) records"
-                        }
-                        // Yield to allow UI updates
-                        await Task.yield()
-                    }
-                }
-                
-                // Generate the combined PDF with cooperative yielding
-                await MainActor.run {
-                    progressTracker.localizedAdditionalDescription = "Generating combined PDF..."
-                }
-                
-                let data = try await pdfGenerator.generatePDFAsync(
-                    pages: attributedPages,
-                    pageSize: pageSize,
-                    margins: margins,
-                    headerImage: headerImage
-                )
-                
-                let filename = Self.combinedFileName(jobName: jobName)
-                let fileURL = outputFolderURL.appending(path: filename)
-                try data.write(to: fileURL)
-                outputURL = fileURL
-                attachmentURL = fileURL
-            } else {
-                var outputFiles: [URL] = []
-                var usedFileNames: Set<String> = []
-                var lastOutput: URL? = nil
-                var lastProgressUpdate = Date()
-                
-                // Process documents with explicit yielding to keep UI responsive
-                for (index, row) in dataRows.enumerated() {
-                    // Check for cancellation before each row
-                    if progressTracker.isCancelled {
-                        throw CancellationError()
-                    }
-                    
-                    // Yield before processing each document to keep UI responsive
-                    await Task.yield()
-                    
-                    // Prepare the data (fast, can stay on current task)
-                    let rowData = Self.rowData(headers: sheet.headers, row: row)
-                    let attributed = Self.merge(template: templateText.value, rowData: rowData, mappings: mappings)
-                    
-                    // Generate PDF with cooperative yielding
-                    let data = try await pdfGenerator.generatePDFAsync(
-                        from: attributed,
-                        pageSize: pageSize,
-                        margins: margins,
-                        headerImage: headerImage
-                    )
-                    
-                    let fileName = Self.outputFileName(
-                        pattern: filePattern,
-                        rowIndex: index + 1,
-                        rowData: rowData,
-                        usedNames: &usedFileNames
-                    )
-                    let fileURL = outputFolderURL.appending(path: fileName)
-                    try data.write(to: fileURL)
-                    lastOutput = fileURL
-                    outputFiles.append(fileURL)
-                    
-                    // Update progress
-                    let currentIndex = index + 1
-                    let shouldUpdate = currentIndex % progressUpdateInterval == 0 
-                        || currentIndex == totalRecords 
-                        || Date().timeIntervalSince(lastProgressUpdate) > 0.1
-                    
-                    if shouldUpdate {
-                        lastProgressUpdate = Date()
-                        await MainActor.run {
-                            progress(currentIndex, totalRecords)
-                            progressTracker.completedUnitCount = Int64(currentIndex)
-                            progressTracker.localizedAdditionalDescription = "Processing \(currentIndex) of \(totalRecords) records"
-                        }
-                        // Explicit yield after UI update to allow rendering
-                        await Task.yield()
-                        // Add a small suspension to force RunLoop processing
-                        try? await Task.sleep(for: .milliseconds(1))
-                    } else {
-                        // Still update NSProgress without UI update, but yield periodically
-                        progressTracker.completedUnitCount = Int64(currentIndex)
-                        // Yield every few documents even when not updating UI
-                        if currentIndex % 3 == 0 {
-                            await Task.yield()
-                        }
-                    }
-                }
-                outputURL = lastOutput
-                attachmentURL = try createZipAttachment(
-                    files: outputFiles,
-                    jobName: jobName
-                )
-            }
-
-            let duration = Date().timeIntervalSince(start)
-            await MainActor.run {
+            let result = try await mergeRecords(
+                job: job,
+                templateBookmarkData: templateBookmarkData,
+                dataBookmarkData: dataBookmarkData,
+                sheetName: sheetName,
+                outputBookmarkData: outputBookmarkData,
+                singleDocument: singleDocument,
+                progress: progress
+            )
+            // The job may have been deleted while the merge ran.
+            if !job.isDeleted {
                 job.status = .completed
                 job.lastRunDate = Date()
-                job.lastRunRecordCount = totalRecords
+                job.lastRunRecordCount = result.recordCount
             }
-            return MergeResult(
-                outputURL: outputURL,
-                attachmentURL: attachmentURL,
-                recordCount: totalRecords,
-                duration: duration
-            )
+            return result
+        } catch is CancellationError {
+            if !job.isDeleted {
+                job.status = previousStatus == .running ? (job.isConfigured ? .configured : .draft) : previousStatus
+                job.lastRunDate = previousRunDate
+                job.lastRunRecordCount = previousRecordCount
+            }
+            throw CancellationError()
         } catch {
-            await MainActor.run {
+            if !job.isDeleted {
                 job.status = .failed
                 job.lastRunDate = Date()
                 job.lastRunRecordCount = nil
@@ -616,6 +451,95 @@ final class MergeEngine {
         }
     }
 
+    private func mergeRecords(
+        job: MailMergeJob,
+        templateBookmarkData: Data,
+        dataBookmarkData: Data,
+        sheetName: String,
+        outputBookmarkData: Data,
+        singleDocument: Bool,
+        progress: (MergeProgress) -> Void
+    ) async throws -> MergeResult {
+        let start = Date()
+        let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
+        let headerImage = await docxParser.headerImage(bookmarkData: templateBookmarkData)
+        let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
+        try Task.checkCancellation()
+
+        let dataRows = filteredRows(sheet.rows)
+        let totalRecords = dataRows.count
+        guard totalRecords > 0 else { throw MergeError.noRecords }
+        progress(MergeProgress(completed: 0, total: totalRecords))
+
+        let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
+        let jobName = job.name
+        let filePattern = job.outputFileNamePattern
+        let page = Self.pageSetup(for: templateText)
+        let layout = pdfGenerator.layout(pageSize: page.size, margins: page.margins, headerImage: headerImage)
+        var pacer = InterfacePacer()
+
+        let outputFolderURL = try SecurityScopedAccess.startAccessing(bookmarkData: outputBookmarkData)
+        defer { SecurityScopedAccess.stopAccessing(outputFolderURL) }
+
+        if singleDocument {
+            let document = PDFDocument()
+            for (index, row) in dataRows.enumerated() {
+                try Task.checkCancellation()
+                let text = Self.merge(template: templateText.value, rowData: Self.rowData(headers: sheet.headers, row: row), mappings: mappings)
+                pdfGenerator.appendPages(of: text, to: document, layout: layout)
+                progress(MergeProgress(completed: index + 1, total: totalRecords))
+                try await pacer.letInterfaceUpdate()
+            }
+            try Task.checkCancellation()
+            guard let data = document.dataRepresentation() else {
+                throw MergeError.pdfGenerationFailed
+            }
+            let fileURL = outputFolderURL.appending(path: Self.combinedFileName(jobName: jobName))
+            try data.write(to: fileURL)
+            // Mail reads the attachment after the merge gives up access to the output
+            // folder, so attach a copy from the app's temporary folder.
+            let attachmentURL = FileManager.default.temporaryDirectory.appending(path: fileURL.lastPathComponent)
+            try data.write(to: attachmentURL)
+            return MergeResult(
+                outputURL: fileURL,
+                attachmentURL: attachmentURL,
+                recordCount: totalRecords,
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        var outputFiles: [URL] = []
+        var usedFileNames: Set<String> = []
+        for (index, row) in dataRows.enumerated() {
+            try Task.checkCancellation()
+            let rowData = Self.rowData(headers: sheet.headers, row: row)
+            let text = Self.merge(template: templateText.value, rowData: rowData, mappings: mappings)
+            let document = PDFDocument()
+            pdfGenerator.appendPages(of: text, to: document, layout: layout)
+            guard let data = document.dataRepresentation() else {
+                throw MergeError.pdfGenerationFailed
+            }
+            let fileName = Self.outputFileName(
+                pattern: filePattern,
+                rowIndex: index + 1,
+                rowData: rowData,
+                usedNames: &usedFileNames
+            )
+            let fileURL = outputFolderURL.appending(path: fileName)
+            try data.write(to: fileURL)
+            outputFiles.append(fileURL)
+            progress(MergeProgress(completed: index + 1, total: totalRecords))
+            try await pacer.letInterfaceUpdate()
+        }
+        try Task.checkCancellation()
+        let attachmentURL = try createZipAttachment(files: outputFiles, jobName: jobName)
+        return MergeResult(
+            outputURL: outputFiles.last,
+            attachmentURL: attachmentURL,
+            recordCount: totalRecords,
+            duration: Date().timeIntervalSince(start)
+        )
+    }
 
     /// Fills a template with one record's values.
     ///
@@ -790,6 +714,22 @@ final class MergeEngine {
             )
         }
         return zipURL
+    }
+}
+
+/// Gives the main run loop a chance to handle input and redraw during long main-actor
+/// work. A yield alone can resume before the run loop turns, so this sleeps briefly every
+/// few dozen milliseconds; sleeping also ends the work promptly once it's cancelled.
+private struct InterfacePacer {
+    private var lastPause = ContinuousClock.now
+
+    mutating func letInterfaceUpdate() async throws {
+        if ContinuousClock.now - lastPause >= .milliseconds(30) {
+            try await Task.sleep(for: .milliseconds(1))
+            lastPause = .now
+        } else {
+            await Task.yield()
+        }
     }
 }
 
