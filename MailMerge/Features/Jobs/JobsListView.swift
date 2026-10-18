@@ -42,6 +42,8 @@ struct ContentView: View {
     @State private var jobCommandRouter = JobCommandRouter()
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
+    @AppStorage("confirmBeforeDelete") private var confirmBeforeDelete = true
+    @State private var jobPendingDeletion: MailMergeJob?
 
     private let freeJobLimit = 3
 
@@ -98,9 +100,6 @@ struct ContentView: View {
                     onSave: saveCategory
                 )
             }
-            .sheet(isPresented: $showingJobRename) {
-                JobRenameView(name: jobRenameName, onSave: saveJobRename)
-            }
             .sheet(isPresented: $showingCategoryManager) {
                 CategoryManagerView(
                     categories: categories,
@@ -137,6 +136,24 @@ struct ContentView: View {
                     Text("\"\(category.name)\" will be removed. Jobs in this category will move to Uncategorized.")
                 }
             }
+        }
+        // Job menu commands can fire while a job is open, so these presentations live
+        // outside the navigation stack, where they can appear over any pushed screen.
+        .sheet(isPresented: $showingJobRename) {
+            JobRenameView(name: jobRenameName, onSave: saveJobRename)
+        }
+        .alert(
+            "Delete Job?",
+            isPresented: Binding(
+                get: { jobPendingDeletion != nil },
+                set: { if !$0 { jobPendingDeletion = nil } }
+            ),
+            presenting: jobPendingDeletion
+        ) { job in
+            Button("Delete", role: .destructive) { deleteJob(job) }
+            Button("Cancel", role: .cancel) { }
+        } message: { job in
+            Text("“\(job.name)” will be permanently deleted. Your template, spreadsheet, and generated PDFs won’t be affected.")
         }
         .onAppear(perform: ensureDefaultCategoriesIfNeeded)
         .onAppear(perform: refreshEntitlementFallback)
@@ -218,7 +235,7 @@ struct ContentView: View {
                         jobRow(for: job)
                             .contextMenu {
                                 Button("Rename") { beginRename(job) }
-                                Button("Delete", role: .destructive) { deleteJob(job) }
+                                Button("Delete", role: .destructive) { requestDelete(job) }
                             }
                     }
                 }
@@ -311,6 +328,15 @@ struct ContentView: View {
         case .rename:
             beginRename(job)
         case .delete:
+            requestDelete(job)
+        }
+    }
+
+    /// Deletes right away, or asks first when "Confirm before deleting jobs" is on.
+    private func requestDelete(_ job: MailMergeJob) {
+        if confirmBeforeDelete {
+            jobPendingDeletion = job
+        } else {
             deleteJob(job)
         }
     }
