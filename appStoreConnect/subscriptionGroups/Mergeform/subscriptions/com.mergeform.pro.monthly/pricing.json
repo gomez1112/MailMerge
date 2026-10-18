@@ -1,0 +1,33 @@
+{
+  "baseTerritory": "USA",
+  "prices": [
+    {
+      "customerPrice": "4.99",
+      "territory": "COG"
+    },
+    {
+      "customerPrice": "89000",
+      "territory": "IDN"
+    },
+    {
+      "customerPrice": "17.9",
+      "territory": "ISR"
+    },
+    {
+      "customerPrice": "6600",
+      "territory": "KOR"
+    },
+    {
+      "customerPrice": "4.99",
+      "territory": "MAR"
+    },
+    {
+      "customerPrice": "4.99",
+      "territory": "MUS"
+    },
+    {
+      "customerPrice": "4.99",
+      "territory": "USA"
+    }
+  ]
+}

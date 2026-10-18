@@ -144,6 +144,12 @@ actor ExcelParserService {
     private func loadSheet(bookmarkData: Data, sheetName: String, rowLimit: Int?) async throws -> SheetData {
         let url = try SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData)
         defer { SecurityScopedAccess.stopAccessing(url) }
+        return try loadSheet(at: url, sheetName: sheetName, rowLimit: rowLimit)
+    }
+
+    /// Reads a sheet from an already-accessible file URL. The caller is responsible
+    /// for any security-scoped access the URL requires.
+    func loadSheet(at url: URL, sheetName: String, rowLimit: Int?) throws -> SheetData {
         guard let file = XLSXFile(filepath: url.path) else {
             throw MergeError.invalidSpreadsheet
         }
@@ -235,15 +241,9 @@ actor ExcelParserService {
             return inline
         }
         if cell.type == .sharedString, let sharedStrings, let value = cell.stringValue(sharedStrings) {
-            if let formatted = formattedStringValue(
-                value,
-                cell: cell,
-                styles: styles,
-                headerName: headerName
-            ) {
-                return formatted
-            }
-            return normalizeNumericString(value)
+            // Shared strings are text cells by definition. Interpreting them as numbers
+            // would strip leading zeros from ZIP codes and IDs (or turn "0.25" into a time).
+            return value.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         if cell.type == .string, let rawValue = cell.value {
             return rawValue
@@ -258,35 +258,6 @@ actor ExcelParserService {
             return formatted
         }
         return normalizeNumericString(rawValue)
-    }
-
-    private func formattedStringValue(
-        _ value: String,
-        cell: Cell,
-        styles: Styles?,
-        headerName: String?
-    ) -> String? {
-        guard let number = Double(value) else { return nil }
-        if cell.type == .date {
-            return formatDate(excelDate(from: number), kind: inferredDateKind(for: number), formatCode: "m/d/yy h:mm")
-        }
-        guard let format = formatCode(for: cell, styles: styles) else {
-            if shouldForceTime(headerName: headerName, rawValue: value, number: number) {
-                return formatDate(excelDate(from: number), kind: .time, formatCode: "h:mm")
-            }
-            return formatPlainNumber(number, rawValue: value)
-        }
-        let formatKind = formatKind(for: format)
-        if formatKind == .number, shouldForceTime(headerName: headerName, rawValue: value, number: number) {
-            return formatDate(excelDate(from: number), kind: .time, formatCode: "h:mm")
-        }
-        switch formatKind {
-        case .date, .time, .dateTime:
-            let date = excelDate(from: number)
-            return formatDate(date, kind: formatKind, formatCode: format)
-        case .number:
-            return formatPlainNumber(number, rawValue: value)
-        }
     }
 
     private func formattedCellValue(
@@ -755,7 +726,7 @@ final class MergeEngine {
         let safeIndex = max(0, min(recordIndex, totalRecords - 1))
         let row = dataRows[safeIndex]
         let mappingSnapshots = job.fieldMappings.map { MappingSnapshot(from: $0) }
-        let rowData = buildRowData(headers: sheet.headers, row: row)
+        let rowData = Self.rowData(headers: sheet.headers, row: row)
         let attributedString = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappingSnapshots)
         
         // Use async version for better UI responsiveness
@@ -841,7 +812,7 @@ final class MergeEngine {
                         throw CancellationError()
                     }
                     
-                    let rowData = buildRowData(headers: sheet.headers, row: row)
+                    let rowData = Self.rowData(headers: sheet.headers, row: row)
                     let mergedText = applyMappings(
                         templateText: templateText.value,
                         rowData: rowData,
@@ -885,6 +856,7 @@ final class MergeEngine {
                 attachmentURL = fileURL
             } else {
                 var outputFiles: [URL] = []
+                var usedFileNames: Set<String> = []
                 var lastOutput: URL? = nil
                 var lastProgressUpdate = Date()
                 
@@ -899,7 +871,7 @@ final class MergeEngine {
                     await Task.yield()
                     
                     // Prepare the data (fast, can stay on current task)
-                    let rowData = buildRowData(headers: sheet.headers, row: row)
+                    let rowData = Self.rowData(headers: sheet.headers, row: row)
                     let attributed = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
                     
                     // Generate PDF with cooperative yielding
@@ -910,10 +882,11 @@ final class MergeEngine {
                         headerImageData: headerImageData
                     )
                     
-                    let fileName = outputFileName(
+                    let fileName = Self.outputFileName(
                         pattern: filePattern,
                         rowIndex: index + 1,
-                        rowData: rowData
+                        rowData: rowData,
+                        usedNames: &usedFileNames
                     )
                     let fileURL = outputFolderURL.appending(path: fileName)
                     try data.write(to: fileURL)
@@ -1001,11 +974,14 @@ final class MergeEngine {
         return output
     }
 
-    private func buildRowData(headers: [String], row: [String]) -> [String: String] {
+    /// Keys are trimmed header names, matching the column names offered for mapping.
+    /// When trimmed headers collide, the first column wins, as it does in the column picker.
+    static func rowData(headers: [String], row: [String]) -> [String: String] {
         var data: [String: String] = [:]
         for (index, header) in headers.enumerated() {
-            let value = index < row.count ? row[index] : ""
-            data[header] = value
+            let key = header.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty, data[key] == nil else { continue }
+            data[key] = index < row.count ? row[index] : ""
         }
         return data
     }
@@ -1016,13 +992,31 @@ final class MergeEngine {
         }
     }
 
-    private func outputFileName(pattern: String, rowIndex: Int, rowData: [String: String]) -> String {
+    static func outputFileName(
+        pattern: String,
+        rowIndex: Int,
+        rowData: [String: String],
+        usedNames: inout Set<String>
+    ) -> String {
         var fileName = pattern.replacingOccurrences(of: "{Row}", with: "\(rowIndex)")
         for (key, value) in rowData {
             fileName = fileName.replacingOccurrences(of: "{\(key)}", with: value)
         }
-        let sanitized = sanitizeFileName(fileName)
-        return sanitized.hasSuffix(".pdf") ? sanitized : "\(sanitized).pdf"
+        var baseName = FileNameSanitizer.sanitize(fileName)
+        if baseName.lowercased().hasSuffix(".pdf") {
+            baseName = String(baseName.dropLast(4))
+        }
+        // Two records can resolve to the same name (shared names, or tokens that don't
+        // match any column). Number the duplicates so no record overwrites another.
+        // Compare case-insensitively because the default macOS file system does.
+        var candidate = "\(baseName).pdf"
+        var suffix = 2
+        while usedNames.contains(candidate.lowercased()) {
+            candidate = "\(baseName) \(suffix).pdf"
+            suffix += 1
+        }
+        usedNames.insert(candidate.lowercased())
+        return candidate
     }
 
     private func replaceAllOccurrences(

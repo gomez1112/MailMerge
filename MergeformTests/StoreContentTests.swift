@@ -2,6 +2,7 @@ import Testing
 import FlexStore
 @testable import Mergeform
 
+@MainActor
 @Suite("Store content")
 struct StoreContentTests {
     @Test("Mail merge pro features are stable")

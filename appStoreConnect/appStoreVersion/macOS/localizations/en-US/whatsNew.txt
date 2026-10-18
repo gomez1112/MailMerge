@@ -1,0 +1,15 @@
+We redesigned major parts of the app with a new visual system, so everything looks consistent and feels faster to use.
+
+What’s new:
+- App navigation updated for smoother, quicker access to every section
+- Jobs overview redesigned to help you spot what matters at a glance
+- Template library refreshed for easier browsing, selection, and starting new jobs
+- Category sheets updated so you can find the right templates in fewer taps
+- Job setup workspace rebuilt to make the full process clearer from start to finish
+
+We also refreshed the configuration experience:
+- New configuration screens with cleaner layout and more intuitive controls
+- Improved preview and run flow so you can test your setup with less back-and-forth
+- Shared components updated for more consistent behavior across the app
+
+Finally, we updated paywall styling to match the new design system, keeping the upgrade experience visually aligned with the rest of the product.
