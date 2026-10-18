@@ -5,16 +5,11 @@ import OnboardingKit
 import FlexStore
 import AppKit
 
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let createNewJob = Notification.Name("com.mailmerge.createNewJob")
-}
-
 // MARK: - Focused Values
 
 extension FocusedValues {
     @Entry var jobCommands: FocusedJobCommands? = nil
+    @Entry var windowCommands: FocusedWindowCommands? = nil
 }
 
 // MARK: - App Entry Point
@@ -106,12 +101,6 @@ struct MailMergeApp: App {
         .commands {
             ToolbarCommands()
             SidebarCommands()
-            CommandGroup(replacing: .newItem) {
-                Button("New Job") {
-                    NotificationCenter.default.post(name: .createNewJob, object: nil)
-                }
-                .keyboardShortcut("n", modifiers: .command)
-            }
             MailMergeCommands()
         }
 
@@ -135,8 +124,17 @@ struct MailMergeApp: App {
 
 struct MailMergeCommands: Commands {
     @FocusedValue(\.jobCommands) private var jobCommands: FocusedJobCommands?
+    @FocusedValue(\.windowCommands) private var windowCommands: FocusedWindowCommands?
 
     var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Job") {
+                windowCommands?.newJob()
+            }
+            .keyboardShortcut("n", modifiers: .command)
+            .disabled(windowCommands == nil)
+        }
+
         CommandMenu("Job") {
             Button("Rename Job") {
                 jobCommands?.rename()
@@ -147,6 +145,10 @@ struct MailMergeCommands: Commands {
             Divider()
 
             Button("Delete Job") {
+                let isKeyEquivalent = NSApp.currentEvent?.type == .keyDown
+                if TextEditingShortcut.forwardsDeleteToText(responder: NSApp.keyWindow?.firstResponder, isKeyEquivalent: isKeyEquivalent) {
+                    return
+                }
                 jobCommands?.delete()
             }
             .keyboardShortcut(.delete, modifiers: .command)

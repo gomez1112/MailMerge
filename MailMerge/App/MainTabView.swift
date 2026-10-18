@@ -8,6 +8,7 @@ import StoreKit
 struct MainTabView: View {
     @State private var selection: SidebarDestination = .jobs
     @State private var pendingJobID: UUID?
+    @State private var windowCommands = WindowCommandRouter()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -19,6 +20,11 @@ struct MainTabView: View {
                 .animation(.smooth(duration: 0.25), value: selection)
         }
         .navigationSplitViewStyle(.balanced)
+        .focusedSceneValue(\.windowCommands, FocusedWindowCommands(router: windowCommands))
+        .onChange(of: windowCommands.isNewJobRequested) { _, isRequested in
+            // New jobs are created from the Jobs list, so show it.
+            if isRequested { selection = .jobs }
+        }
     }
 
     // MARK: - Sidebar
@@ -57,7 +63,7 @@ struct MainTabView: View {
     private var detailContent: some View {
         switch selection {
         case .jobs:
-            ContentView(pendingJobID: $pendingJobID)
+            ContentView(pendingJobID: $pendingJobID, newJobRequested: $windowCommands.isNewJobRequested)
         case .templates:
             TemplateLibraryView { jobID in
                 pendingJobID = jobID
@@ -183,24 +189,13 @@ private struct TemplateLibraryView: View {
         self.onOpenJobs = onOpenJobs
     }
 
-    private var templateItems: [TemplateItem] {
-        let sources: [TemplateSource] = jobs.compactMap { job in
+    private var templateItems: [TemplateLibraryItem] {
+        let sources: [TemplateLibraryItem.Source] = jobs.compactMap { job in
             guard let bookmarkData = job.templateBookmarkData,
                   let fileName = job.templateFileName else { return nil }
-            return TemplateSource(bookmarkData: bookmarkData, fileName: fileName, lastUsed: job.modifiedAt)
+            return TemplateLibraryItem.Source(bookmarkData: bookmarkData, fileName: fileName, lastUsed: job.modifiedAt)
         }
-        let grouped = Dictionary(grouping: sources, by: { $0.bookmarkData })
-        return grouped.compactMap { key, values in
-            guard let latest = values.max(by: { $0.lastUsed < $1.lastUsed }) else { return nil }
-            return TemplateItem(
-                id: key,
-                fileName: latest.fileName,
-                lastUsed: latest.lastUsed,
-                usageCount: values.count,
-                bookmarkData: key
-            )
-        }
-        .sorted(by: { $0.lastUsed > $1.lastUsed })
+        return TemplateLibraryItem.items(from: sources, fileIdentity: SecurityScopedAccess.filePath(for:))
     }
 
     var body: some View {
@@ -340,7 +335,7 @@ private struct TemplateLibraryView: View {
         return job.id
     }
 
-    private func createJob(from item: TemplateItem) async -> UUID? {
+    private func createJob(from item: TemplateLibraryItem) async -> UUID? {
         guard await canCreateJobNow() else {
             showLimitAlertAndPaywall()
             return nil
@@ -355,7 +350,7 @@ private struct TemplateLibraryView: View {
         return job.id
     }
 
-    private func revealTemplate(_ item: TemplateItem) {
+    private func revealTemplate(_ item: TemplateLibraryItem) {
         guard let url = try? SecurityScopedAccess.startAccessing(bookmarkData: item.bookmarkData) else { return }
         defer { SecurityScopedAccess.stopAccessing(url) }
         NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -430,7 +425,7 @@ private struct TemplateLibraryView: View {
 // MARK: - Template Card
 
 private struct TemplateCard: View {
-    let item: TemplateItem
+    let item: TemplateLibraryItem
     let onUse: () -> Void
     let revealTitle: String
     let onReveal: () -> Void
@@ -505,16 +500,3 @@ private struct TemplateCard: View {
 
 // MARK: - Data Models
 
-private struct TemplateItem: Identifiable {
-    let id: Data
-    let fileName: String
-    let lastUsed: Date
-    let usageCount: Int
-    let bookmarkData: Data
-}
-
-private struct TemplateSource {
-    let bookmarkData: Data
-    let fileName: String
-    let lastUsed: Date
-}

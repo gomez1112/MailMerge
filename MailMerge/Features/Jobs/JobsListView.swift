@@ -7,13 +7,16 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StoreKitService<MailMergeTier>.self) private var store
 
-    init(pendingJobID: Binding<UUID?> = .constant(nil)) {
+    init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false)) {
         _pendingJobID = pendingJobID
+        _newJobRequested = newJobRequested
     }
     @Query(sort: \MailMergeJob.modifiedAt, order: .reverse) private var jobs: [MailMergeJob]
     @Query(sort: [SortDescriptor(\Category.sortOrder), SortDescriptor(\Category.name)]) private var categories: [Category]
 
     @Binding private var pendingJobID: UUID?
+    /// Set by File > New Job; the list starts creating a job and clears it.
+    @Binding private var newJobRequested: Bool
     @SceneStorage("navigationPath") private var navigationPathData: Data = Data()
     @State private var navigationPath: [UUID] = []
     @State private var searchText = ""
@@ -36,7 +39,6 @@ struct ContentView: View {
     @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
-    @State private var selectedJobID: UUID?
     @State private var entitlementHasPro = false
     @State private var entitlementObserverTask: Task<Void, Never>?
     @State private var jobCommandRouter = JobCommandRouter()
@@ -83,14 +85,6 @@ struct ContentView: View {
                 navigationPath = [newValue]
                 pendingJobID = nil
             }
-            .sheet(isPresented: $showingNewJobSheet) {
-                NewJobCategoryPickerView(
-                    categories: categories,
-                    selectedCategoryID: $newJobCategoryID,
-                    jobName: $newJobName,
-                    onCreate: confirmCreateJob
-                )
-            }
             .sheet(isPresented: $showingCategoryEditor) {
                 CategoryEditorView(
                     title: categoryEditorMode.title,
@@ -109,19 +103,6 @@ struct ContentView: View {
                     onMove: moveCategory
                 )
             }
-            .sheet(isPresented: $showingPaywall) {
-                PaywallView()
-            }
-            .alert("Free Job Limit Reached", isPresented: $showingLimitAlert) {
-                Button("OK", role: .cancel) {
-                    if showingPaywallAfterAlert {
-                        showingPaywall = true
-                        showingPaywallAfterAlert = false
-                    }
-                }
-            } message: {
-                Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
-            }
             .alert("Delete Category?", isPresented: Binding(
                 get: { pendingDeleteCategory != nil },
                 set: { if !$0 { pendingDeleteCategory = nil } }
@@ -137,8 +118,29 @@ struct ContentView: View {
                 }
             }
         }
-        // Job menu commands can fire while a job is open, so these presentations live
-        // outside the navigation stack, where they can appear over any pushed screen.
+        // Menu commands can fire while a job is open, so these presentations live outside
+        // the navigation stack, where they can appear over any pushed screen.
+        .sheet(isPresented: $showingNewJobSheet) {
+            NewJobCategoryPickerView(
+                categories: categories,
+                selectedCategoryID: $newJobCategoryID,
+                jobName: $newJobName,
+                onCreate: confirmCreateJob
+            )
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
+        }
+        .alert("Free Job Limit Reached", isPresented: $showingLimitAlert) {
+            Button("OK", role: .cancel) {
+                if showingPaywallAfterAlert {
+                    showingPaywall = true
+                    showingPaywallAfterAlert = false
+                }
+            }
+        } message: {
+            Text("You have created 3 jobs. Upgrade to Pro or Lifetime to create more.")
+        }
         .sheet(isPresented: $showingJobRename) {
             JobRenameView(name: jobRenameName, onSave: saveJobRename)
         }
@@ -158,24 +160,19 @@ struct ContentView: View {
         .onAppear(perform: ensureDefaultCategoriesIfNeeded)
         .onAppear(perform: refreshEntitlementFallback)
         .onAppear(perform: startEntitlementObserver)
-        .onAppear(perform: restoreNavigationPath)
-            .onChange(of: navigationPath) { _, newPath in
-                persistNavigationPath(newPath)
-                if let last = newPath.last {
-                    selectedJobID = last
-                }
-            }
-            .onChange(of: selectedJobID) { _, newValue in
-                guard let newValue else { return }
-                if navigationPath.last != newValue {
-                    navigationPath = [newValue]
-                }
-            }
-            .onChange(of: store.subscriptionTier) { _, _ in
-                refreshEntitlementFallback()
-            }
+        .onAppear(perform: applyInitialNavigation)
+        .onChange(of: navigationPath) { _, newPath in
+            persistNavigationPath(newPath)
+        }
+        .onChange(of: store.subscriptionTier) { _, _ in
+            refreshEntitlementFallback()
+        }
         .onDisappear(perform: stopEntitlementObserver)
-        .onReceive(NotificationCenter.default.publisher(for: .createNewJob)) { _ in createJob() }
+        .onChange(of: newJobRequested, initial: true) { _, isRequested in
+            guard isRequested else { return }
+            newJobRequested = false
+            createJob()
+        }
         .focusedSceneValue(\.jobCommands, focusedJobCommands)
         .onChange(of: jobCommandRouter.pendingCommand) { _, command in
             guard let command else { return }
@@ -184,15 +181,14 @@ struct ContentView: View {
         }
     }
 
-    /// Targets the open job, or the selected one, for the Job menu.
+    /// Targets the open job for the Job menu.
     private var focusedJobCommands: FocusedJobCommands? {
         guard let id = focusedJobID, jobs.contains(where: { $0.id == id }) else { return nil }
         return FocusedJobCommands(jobID: id, router: jobCommandRouter)
     }
 
     private var focusedJobID: UUID? {
-        if let id = navigationPath.last { return id }
-        return selectedJobID
+        JobNavigation.focusedJobID(path: navigationPath)
     }
 
     private var emptyCategory: some View {
@@ -211,11 +207,16 @@ struct ContentView: View {
 
     // MARK: - Actions
 
-    private func restoreNavigationPath() {
-        guard !navigationPathData.isEmpty else { return }
-        if let ids = try? JSONDecoder().decode([UUID].self, from: navigationPathData) {
-            navigationPath = ids
-        }
+    /// Opens the job handed over from the Templates tab, or restores this window's path.
+    private func applyInitialNavigation() {
+        // An unreadable saved path just means starting at the list.
+        let savedPath = (try? JSONDecoder().decode([UUID].self, from: navigationPathData)) ?? []
+        navigationPath = JobNavigation.initialPath(
+            pendingJobID: pendingJobID,
+            savedPath: savedPath,
+            existingJobIDs: Set(jobs.map(\.id))
+        )
+        pendingJobID = nil
     }
 
     @ViewBuilder
@@ -318,7 +319,6 @@ struct ContentView: View {
             let job = source[index]
             modelContext.delete(job)
             navigationPath.removeAll(where: { $0 == job.id })
-            if selectedJobID == job.id { selectedJobID = nil }
         }
     }
 
@@ -344,7 +344,6 @@ struct ContentView: View {
     private func deleteJob(_ job: MailMergeJob) {
         modelContext.delete(job)
         navigationPath.removeAll(where: { $0 == job.id })
-        if selectedJobID == job.id { selectedJobID = nil }
     }
 
     private func ensureDefaultCategoriesIfNeeded() {
@@ -494,9 +493,6 @@ struct ContentView: View {
             JobRowView(job: job)
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(TapGesture().onEnded {
-            selectedJobID = job.id
-        })
     }
 }
 

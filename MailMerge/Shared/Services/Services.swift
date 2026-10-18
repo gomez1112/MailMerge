@@ -878,6 +878,19 @@ enum SecurityScopedAccess {
         return url
     }
 
+    /// The path of the file a bookmark points to, without accessing the file. Bookmarks
+    /// to the same file differ byte for byte, so compare these instead.
+    nonisolated static func filePath(for bookmarkData: Data) -> String? {
+        var isStale = false
+        let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope, .withoutUI, .withoutMounting],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        )
+        return url?.standardizedFileURL.path
+    }
+
     /// A new bookmark and the current URL when `bookmarkData` points at a file that was
     /// moved or renamed; nil when the bookmark is current or the file can't be found.
     nonisolated static func refreshedBookmark(for bookmarkData: Data) -> (bookmark: Data, url: URL)? {
