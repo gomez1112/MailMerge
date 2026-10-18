@@ -148,15 +148,7 @@ final class FieldMapping {
     }
 
     var displayName: String {
-        placeholderText
-            .replacingOccurrences(of: "{{", with: "")
-            .replacingOccurrences(of: "}}", with: "")
-            .replacingOccurrences(of: "<<", with: "")
-            .replacingOccurrences(of: ">>", with: "")
-            .replacingOccurrences(of: "[[", with: "")
-            .replacingOccurrences(of: "]]", with: "")
-            .replacingOccurrences(of: "${", with: "")
-            .replacingOccurrences(of: "}", with: "")
+        TemplatePlaceholders.fieldName(for: placeholderText)
     }
 }
 

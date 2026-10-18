@@ -11,105 +11,38 @@ actor DOCXParserService {
     func parseTemplate(bookmarkData: Data) async throws -> AttributedTemplate {
         let url = try SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData)
         defer { SecurityScopedAccess.stopAccessing(url) }
+        return try await parseTemplate(at: url)
+    }
+
+    /// Reads the template's text along with its paper size and margins.
+    func parseTemplate(at url: URL) async throws -> AttributedTemplate {
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
             .documentType: NSAttributedString.DocumentType.officeOpenXML
         ]
+        let layout = (try? DOCXPackage(url: url))?.pageLayout()
         return try await MainActor.run {
-            let attributed = try NSAttributedString(url: url, options: options, documentAttributes: nil)
-            return AttributedTemplate(value: attributed)
+            let text = try NSAttributedString(url: url, options: options, documentAttributes: nil)
+            return AttributedTemplate(value: text, pageSize: layout?.pageSize, margins: layout?.margins)
         }
     }
 
     func extractPlaceholders(from content: AttributedTemplate) async -> [String] {
         let plainText = await MainActor.run { content.value.string }
-        let patterns = ["\\{\\{(.*?)\\}\\}", "<<(.+?)>>", "\\$\\{(.+?)\\}", "\\[\\[(.+?)\\]\\]"]
-        var results: Set<String> = []
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let matches = regex.matches(in: plainText, range: NSRange(plainText.startIndex..., in: plainText))
-            for match in matches {
-                guard match.numberOfRanges > 1 else { continue }
-                if let range = Range(match.range(at: 1), in: plainText) {
-                    results.insert(String(plainText[range]))
-                }
-            }
-        }
-        return Array(results).sorted()
+        return TemplatePlaceholders.fieldNames(in: plainText)
     }
 
-    func headerImageData(bookmarkData: Data) async -> Data? {
+    /// The picture in the template's page header, if any. A template that can't be
+    /// opened has no header picture; reading its text reports the error.
+    func headerImage(bookmarkData: Data) async -> DOCXHeaderImage? {
         guard let url = try? SecurityScopedAccess.startAccessing(bookmarkData: bookmarkData) else {
             return nil
         }
         defer { SecurityScopedAccess.stopAccessing(url) }
-
-        guard let documentRelsData = unzipEntry(from: url, entryPath: "word/_rels/document.xml.rels"),
-              let documentRels = String(data: documentRelsData, encoding: .utf8),
-              let headerTarget = matchFirstGroup(
-                in: documentRels,
-                pattern: "<Relationship[^>]*Type=\\\"[^\\\"]*\\/header\\\"[^>]*Target=\\\"([^\\\"]+)\\\""
-              ) else {
-            return nil
-        }
-
-        let headerPath = normalizeDOCXPath("word/" + headerTarget)
-        guard let headerData = unzipEntry(from: url, entryPath: headerPath),
-              let headerXML = String(data: headerData, encoding: .utf8),
-              let embedId = matchFirstGroup(
-                in: headerXML,
-                pattern: "r:embed=\\\"([^\\\"]+)\\\""
-              ) else {
-            return nil
-        }
-
-        let headerFileName = (headerPath as NSString).lastPathComponent
-        let headerRelsPath = "word/_rels/\(headerFileName).rels"
-        guard let headerRelsData = unzipEntry(from: url, entryPath: headerRelsPath),
-              let headerRelsXML = String(data: headerRelsData, encoding: .utf8),
-              let imageTarget = matchFirstGroup(
-                in: headerRelsXML,
-                pattern: "<Relationship[^>]*Id=\\\"\(NSRegularExpression.escapedPattern(for: embedId))\\\"[^>]*Target=\\\"([^\\\"]+)\\\""
-              ) else {
-            return nil
-        }
-
-        let imagePath = normalizeDOCXPath("word/" + imageTarget)
-        return unzipEntry(from: url, entryPath: imagePath)
+        return headerImage(at: url)
     }
 
-    private func unzipEntry(from url: URL, entryPath: String) -> Data? {
-        do {
-            let archive = try Archive(url: url, accessMode: .read)
-            guard let entry = archive[entryPath] else {
-                return nil
-            }
-            var data = Data()
-            _ = try archive.extract(entry, consumer: { chunk in
-                data.append(chunk)
-            })
-            return data
-        } catch {
-            return nil
-        }
-    }
-
-    private func matchFirstGroup(in text: String, pattern: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(text.startIndex..., in: text)
-        guard let match = regex.firstMatch(in: text, range: range),
-              match.numberOfRanges > 1,
-              let groupRange = Range(match.range(at: 1), in: text) else {
-            return nil
-        }
-        return String(text[groupRange])
-    }
-
-    private func normalizeDOCXPath(_ path: String) -> String {
-        var normalized = path.replacingOccurrences(of: "../", with: "")
-        if normalized.hasPrefix("/") {
-            normalized.removeFirst()
-        }
-        return normalized
+    func headerImage(at url: URL) -> DOCXHeaderImage? {
+        (try? DOCXPackage(url: url))?.headerImage()
     }
 }
 
@@ -196,21 +129,21 @@ final class PDFGeneratorService {
         margins: EdgeInsets,
         headerImageData: Data?
     ) throws -> Data {
-        try generatePDF(pages: [attributedString], pageSize: pageSize, margins: margins, headerImageData: headerImageData)
+        try generatePDF(
+            pages: [attributedString],
+            pageSize: pageSize,
+            margins: margins,
+            headerImage: headerImageData.map { DOCXHeaderImage(data: $0, size: nil) }
+        )
     }
 
     func generatePDF(
-        pages: [NSAttributedString],
+        from attributedString: NSAttributedString,
         pageSize: CGSize,
         margins: EdgeInsets,
-        headerImageData: Data?
+        headerImage: DOCXHeaderImage?
     ) throws -> Data {
-        try generatePDF(
-            pages: AnySequence(pages),
-            pageSize: pageSize,
-            margins: margins,
-            headerImageData: headerImageData
-        )
+        try generatePDF(pages: [attributedString], pageSize: pageSize, margins: margins, headerImage: headerImage)
     }
     
     /// Async version of generatePDF that yields cooperatively during processing
@@ -218,7 +151,7 @@ final class PDFGeneratorService {
         from attributedString: NSAttributedString,
         pageSize: CGSize,
         margins: EdgeInsets,
-        headerImageData: Data?
+        headerImage: DOCXHeaderImage?
     ) async throws -> Data {
         // Yield before starting to allow UI to update
         await Task.yield()
@@ -227,7 +160,7 @@ final class PDFGeneratorService {
             from: attributedString,
             pageSize: pageSize,
             margins: margins,
-            headerImageData: headerImageData
+            headerImage: headerImage
         )
         
         // Yield after completion to allow UI to process the result
@@ -241,7 +174,7 @@ final class PDFGeneratorService {
         pages: S,
         pageSize: CGSize,
         margins: EdgeInsets,
-        headerImageData: Data?
+        headerImage: DOCXHeaderImage?
     ) async throws -> Data where S.Element == NSAttributedString {
         await Task.yield()
         
@@ -249,7 +182,7 @@ final class PDFGeneratorService {
             pages: pages,
             pageSize: pageSize,
             margins: margins,
-            headerImageData: headerImageData
+            headerImage: headerImage
         )
         
         await Task.yield()
@@ -261,7 +194,7 @@ final class PDFGeneratorService {
         pages: S,
         pageSize: CGSize,
         margins: EdgeInsets,
-        headerImageData: Data?
+        headerImage headerPicture: DOCXHeaderImage?
     ) throws -> Data where S.Element == NSAttributedString {
         let baseTextRect = CGRect(
             x: margins.leading,
@@ -269,16 +202,19 @@ final class PDFGeneratorService {
             width: pageSize.width - margins.leading - margins.trailing,
             height: pageSize.height - margins.top - margins.bottom
         )
-        let headerImage = headerImageData.flatMap { PlatformImage(data: $0) }
-        let headerRect = headerImage.flatMap { headerFrame(for: $0, pageSize: pageSize, margins: margins) }
+        let headerImage = headerPicture.flatMap { PlatformImage(data: $0.data) }
+        let headerRect = headerImage.map { image in
+            Self.headerFrame(imageSize: headerPicture?.size ?? image.size, pageSize: pageSize, margins: margins)
+        }
         let textRect: CGRect
-        if let headerRect {
+        if let headerRect, !headerRect.isEmpty {
             let topInset = max(baseTextRect.minY, headerRect.maxY + 12)
             textRect = CGRect(
                 x: baseTextRect.minX,
                 y: topInset,
                 width: baseTextRect.width,
-                height: max(pageSize.height - topInset - margins.bottom, 0)
+                // A zero-height container would lay all text out below the page.
+                height: max(pageSize.height - topInset - margins.bottom, Self.minimumTextHeight)
             )
         } else {
             textRect = baseTextRect
@@ -344,17 +280,23 @@ final class PDFGeneratorService {
         }
     }
 
-    private func headerFrame(for image: PlatformImage, pageSize: CGSize, margins: EdgeInsets) -> CGRect {
-        let maxWidth = pageSize.width - margins.leading - margins.trailing
-        let imageSize = image.size
-        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+    /// Word's default distance from the top of the paper to the header: half an inch.
+    static let headerTopInset: CGFloat = 36
+    static let minimumTextHeight: CGFloat = 72
 
-        let scale = maxWidth / imageSize.width
-        let width = imageSize.width * scale
-        let height = imageSize.height * scale
-        let x = margins.leading
-        let y: CGFloat = 0
-        return CGRect(x: x, y: y, width: width, height: height)
+    /// Where the header picture goes: at its own size, scaled down only to fit within the
+    /// text width and a quarter of the page height, at the top-left of the header area.
+    static func headerFrame(imageSize: CGSize, pageSize: CGSize, margins: EdgeInsets) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+        let maxWidth = max(pageSize.width - margins.leading - margins.trailing, 1)
+        let maxHeight = pageSize.height / 4
+        let scale = min(1, maxWidth / imageSize.width, maxHeight / imageSize.height)
+        return CGRect(
+            x: margins.leading,
+            y: min(headerTopInset, margins.top),
+            width: imageSize.width * scale,
+            height: imageSize.height * scale
+        )
     }
 }
 private final class PDFTextPageView: NSView {
@@ -437,26 +379,27 @@ final class MergeEngine {
         }
 
         let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
-        let headerImageData = await docxParser.headerImageData(bookmarkData: templateBookmarkData)
+        let headerImage = await docxParser.headerImage(bookmarkData: templateBookmarkData)
         let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
         let dataRows = filteredRows(sheet.rows)
         let totalRecords = dataRows.count
         guard totalRecords > 0 else {
             throw MergeError.noRecords
         }
+        let page = Self.pageSetup(for: templateText)
 
         let safeIndex = max(0, min(recordIndex, totalRecords - 1))
         let row = dataRows[safeIndex]
         let mappingSnapshots = job.fieldMappings.map { MappingSnapshot(from: $0) }
         let rowData = Self.rowData(headers: sheet.headers, row: row)
-        let attributedString = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappingSnapshots)
+        let attributedString = Self.merge(template: templateText.value, rowData: rowData, mappings: mappingSnapshots)
         
         // Use async version for better UI responsiveness
         let data = try await pdfGenerator.generatePDFAsync(
             from: attributedString,
-            pageSize: CGSize(width: 612, height: 792),
-            margins: EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48),
-            headerImageData: headerImageData
+            pageSize: page.size,
+            margins: page.margins,
+            headerImage: headerImage
         )
         return (data, totalRecords)
     }
@@ -497,7 +440,7 @@ final class MergeEngine {
 
         do {
             let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
-            let headerImageData = await docxParser.headerImageData(bookmarkData: templateBookmarkData)
+            let headerImage = await docxParser.headerImage(bookmarkData: templateBookmarkData)
             let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
             let dataRows = filteredRows(sheet.rows)
             let totalRecords = dataRows.count
@@ -511,8 +454,9 @@ final class MergeEngine {
             let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
             let jobName = job.name
             let filePattern = job.outputFileNamePattern
-            let pageSize = CGSize(width: 612, height: 792)
-            let margins = EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48)
+            let page = Self.pageSetup(for: templateText)
+            let pageSize = page.size
+            let margins = page.margins
 
             let outputURL: URL?
             let attachmentURL: URL?
@@ -535,8 +479,8 @@ final class MergeEngine {
                     }
                     
                     let rowData = Self.rowData(headers: sheet.headers, row: row)
-                    let mergedText = applyMappings(
-                        templateText: templateText.value,
+                    let mergedText = Self.merge(
+                        template: templateText.value,
                         rowData: rowData,
                         mappings: mappings
                     )
@@ -568,10 +512,10 @@ final class MergeEngine {
                     pages: attributedPages,
                     pageSize: pageSize,
                     margins: margins,
-                    headerImageData: headerImageData
+                    headerImage: headerImage
                 )
                 
-                let filename = sanitizeFileName("Merged_\(jobName)").appending(".pdf")
+                let filename = Self.combinedFileName(jobName: jobName)
                 let fileURL = outputFolderURL.appending(path: filename)
                 try data.write(to: fileURL)
                 outputURL = fileURL
@@ -594,14 +538,14 @@ final class MergeEngine {
                     
                     // Prepare the data (fast, can stay on current task)
                     let rowData = Self.rowData(headers: sheet.headers, row: row)
-                    let attributed = applyMappings(templateText: templateText.value, rowData: rowData, mappings: mappings)
+                    let attributed = Self.merge(template: templateText.value, rowData: rowData, mappings: mappings)
                     
                     // Generate PDF with cooperative yielding
                     let data = try await pdfGenerator.generatePDFAsync(
                         from: attributed,
                         pageSize: pageSize,
                         margins: margins,
-                        headerImageData: headerImageData
+                        headerImage: headerImage
                     )
                     
                     let fileName = Self.outputFileName(
@@ -671,29 +615,54 @@ final class MergeEngine {
     }
 
 
-    private func applyMappings(
-        templateText: NSAttributedString,
+    /// Fills a template with one record's values.
+    ///
+    /// Every placeholder in the template is replaced in a single pass, so text that comes
+    /// from the data, even if it looks like a placeholder, is never replaced again.
+    /// Placeholders without a mapped column are removed. Replacements keep the formatting
+    /// of the placeholder they replace.
+    static func merge(
+        template: NSAttributedString,
         rowData: [String: String],
         mappings: [MappingSnapshot]
     ) -> NSAttributedString {
-        let output = NSMutableAttributedString(attributedString: templateText)
+        var mappingsByField: [String: MappingSnapshot] = [:]
         for mapping in mappings {
-            guard let columnName = mapping.columnName else { continue }
-            let rawValue = rowData[columnName] ?? ""
-            let transformed = mapping.transformation.apply(to: rawValue, formatString: mapping.formatString)
-            for placeholder in placeholderVariants(for: mapping.placeholderText) {
-                replaceAllOccurrences(in: output, placeholder: placeholder, replacement: transformed)
-            }
-            for pattern in placeholderRegexVariants(for: mapping.placeholderText) {
-                replaceAllRegexOccurrences(in: output, pattern: pattern, replacement: transformed)
+            let field = TemplatePlaceholders.fieldName(for: mapping.placeholderText)
+            // If an older job stored the same field twice, prefer the mapped entry.
+            if mappingsByField[field]?.columnName == nil {
+                mappingsByField[field] = mapping
             }
         }
-        // Strip any remaining placeholder tokens (unmapped fields) so they
-        // don't appear as raw {{...}}, <<...>>, ${...}, or [[...]] in the output.
-        for pattern in ["\\{\\{.*?\\}\\}", "<<.*?>>", "\\$\\{.*?\\}", "\\[\\[.*?\\]\\]"] {
-            replaceAllRegexOccurrences(in: output, pattern: pattern, replacement: "")
+
+        let output = NSMutableAttributedString(attributedString: template)
+        for occurrence in TemplatePlaceholders.occurrences(in: template.string).reversed() {
+            var replacement = ""
+            if let mapping = mappingsByField[occurrence.name], let columnName = mapping.columnName {
+                replacement = mapping.transformation.apply(to: rowData[columnName] ?? "", formatString: mapping.formatString)
+            }
+            let attributes = output.attributes(at: occurrence.range.location, effectiveRange: nil)
+            output.replaceCharacters(in: occurrence.range, with: NSAttributedString(string: replacement, attributes: attributes))
         }
         return output
+    }
+
+    /// The paper size and margins to render a template with: the template's own, or US
+    /// Letter with two-thirds-inch margins when it doesn't specify them.
+    static func pageSetup(for template: AttributedTemplate) -> (size: CGSize, margins: EdgeInsets) {
+        let size = template.pageSize ?? CGSize(width: 612, height: 792)
+        let fallback = EdgeInsets(top: 48, leading: 48, bottom: 48, trailing: 48)
+        var margins = template.margins ?? fallback
+        // Margins that leave less than an inch of text area can't be laid out sensibly.
+        if margins.leading + margins.trailing > size.width - 72 {
+            margins.leading = fallback.leading
+            margins.trailing = fallback.trailing
+        }
+        if margins.top + margins.bottom > size.height - 72 {
+            margins.top = fallback.top
+            margins.bottom = fallback.bottom
+        }
+        return (size, margins)
     }
 
     /// Keys are trimmed header names, matching the column names offered for mapping.
@@ -714,23 +683,53 @@ final class MergeEngine {
         }
     }
 
+    /// The name of the single PDF written when records are combined.
+    static func combinedFileName(jobName: String) -> String {
+        let base = cleanedBaseName("Merged_\(jobName)")
+        return "\(base.isEmpty ? "Merged" : base).pdf"
+    }
+
+    /// The file name the Output step shows as an example of what a merge produces.
+    static func previewFileName(pattern: String, combinesIntoSinglePDF: Bool, jobName: String) -> String {
+        if combinesIntoSinglePDF {
+            return combinedFileName(jobName: jobName)
+        }
+        var usedNames: Set<String> = []
+        return outputFileName(pattern: pattern, rowIndex: 1, rowData: [:], usedNames: &usedNames)
+    }
+
+    /// The file name for one record's PDF.
+    ///
+    /// `{Row}` is the record number and `{Column}` is that column's value. Tokens match
+    /// columns ignoring spaces, punctuation, and capitalization, so `{FirstName}` finds a
+    /// "First Name" column. Names that would be empty or hidden fall back to
+    /// "Record N", and names already in `usedNames` get a number appended.
     static func outputFileName(
         pattern: String,
         rowIndex: Int,
         rowData: [String: String],
         usedNames: inout Set<String>
     ) -> String {
-        var fileName = pattern.replacingOccurrences(of: "{Row}", with: "\(rowIndex)")
-        for (key, value) in rowData {
-            fileName = fileName.replacingOccurrences(of: "{\(key)}", with: value)
+        var looseLookup: [String: String] = [:]
+        for key in rowData.keys.sorted() {
+            let looseKey = looseTokenKey(key)
+            if looseLookup[looseKey] == nil {
+                looseLookup[looseKey] = rowData[key]
+            }
         }
-        var baseName = FileNameSanitizer.sanitize(fileName)
-        if baseName.lowercased().hasSuffix(".pdf") {
-            baseName = String(baseName.dropLast(4))
+        let filled = pattern
+            .replacing("{Row}", with: "\(rowIndex)")
+            .replacing(/\{([^{}]+)\}/) { match in
+                let token = String(match.output.1)
+                return rowData[token] ?? looseLookup[looseTokenKey(token)] ?? String(match.output.0)
+            }
+        var baseName = cleanedBaseName(filled)
+        if baseName.isEmpty {
+            baseName = "Record \(rowIndex)"
         }
-        // Two records can resolve to the same name (shared names, or tokens that don't
-        // match any column). Number the duplicates so no record overwrites another.
-        // Compare case-insensitively because the default macOS file system does.
+        // Two records can resolve to the same name. Number the duplicates so no record
+        // overwrites another, comparing case-insensitively like the default macOS file
+        // system does.
         var candidate = "\(baseName).pdf"
         var suffix = 2
         while usedNames.contains(candidate.lowercased()) {
@@ -741,103 +740,42 @@ final class MergeEngine {
         return candidate
     }
 
-    private func replaceAllOccurrences(
-        in attributedString: NSMutableAttributedString,
-        placeholder: String,
-        replacement: String
-    ) {
-        guard !placeholder.isEmpty else { return }
-        var searchRange = NSRange(location: 0, length: attributedString.length)
-        while true {
-            let foundRange = (attributedString.string as NSString).range(of: placeholder, options: [], range: searchRange)
-            if foundRange.location == NSNotFound { break }
-            let attributes = attributedString.attributes(at: foundRange.location, effectiveRange: nil)
-            let replacementString = NSAttributedString(string: replacement, attributes: attributes)
-            attributedString.replaceCharacters(in: foundRange, with: replacementString)
-            let nextLocation = foundRange.location + replacementString.length
-            if nextLocation >= attributedString.length { break }
-            searchRange = NSRange(location: nextLocation, length: attributedString.length - nextLocation)
-        }
+    private static func looseTokenKey(_ text: String) -> String {
+        String(text.lowercased().filter { $0.isLetter || $0.isNumber })
     }
 
-    private func replaceAllRegexOccurrences(
-        in attributedString: NSMutableAttributedString,
-        pattern: String,
-        replacement: String
-    ) {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
-            return
+    /// A file name without extension that's safe to write: no path separators or
+    /// characters Finder rejects, no line breaks, not hidden, and short enough to leave
+    /// room for a duplicate number and the extension within the 255-byte limit.
+    static func cleanedBaseName(_ raw: String) -> String {
+        var name = FileNameSanitizer.sanitize(raw)
+            .split(whereSeparator: \.isNewline)
+            .joined(separator: " ")
+            .replacing("\t", with: " ")
+        if name.lowercased().hasSuffix(".pdf") {
+            name = String(name.dropLast(4))
         }
-        let fullRange = NSRange(location: 0, length: attributedString.length)
-        let matches = regex.matches(in: attributedString.string, range: fullRange).reversed()
-        for match in matches {
-            let range = match.range
-            guard range.location != NSNotFound else { continue }
-            let attributes = attributedString.attributes(at: range.location, effectiveRange: nil)
-            let replacementString = NSAttributedString(string: replacement, attributes: attributes)
-            attributedString.replaceCharacters(in: range, with: replacementString)
+        name = String(name.drop { $0 == "." || $0.isWhitespace })
+        while let last = name.last, last == "." || last.isWhitespace {
+            name.removeLast()
         }
-    }
-
-    private func placeholderVariants(for placeholder: String) -> [String] {
-        let base = normalizedPlaceholder(placeholder)
-        guard !base.isEmpty else { return [] }
-        // Only include the full wrapped forms. Never match the bare field name,
-        // as it would match inside e.g. {{First Name}} replacing just "First Name"
-        // with the value and leaving orphaned {{ }} in the output.
-        var variants: [String] = [
-            "{{\(base)}}",
-            "<<\(base)>>",
-            "${\(base)}",
-            "[[\(base)]]"
-        ]
-        // If the stored placeholder already contains wrapping (e.g. stored as
-        // "{{First Name}}" from an older code path), include it too.
-        if placeholder != base {
-            variants.insert(placeholder, at: 0)
+        var shortened = ""
+        var byteCount = 0
+        for character in name {
+            let characterBytes = String(character).utf8.count
+            guard byteCount + characterBytes <= 240 else { break }
+            shortened.append(character)
+            byteCount += characterBytes
         }
-        return variants
-    }
-
-    private func placeholderRegexVariants(for placeholder: String) -> [String] {
-        let base = normalizedPlaceholder(placeholder)
-        guard !base.isEmpty else { return [] }
-        let escaped = NSRegularExpression.escapedPattern(for: base)
-        return [
-            "\\{\\{\\s*\(escaped)\\s*\\}\\}",
-            "<<\\s*\(escaped)\\s*>>",
-            "\\$\\{\\s*\(escaped)\\s*\\}",
-            "\\[\\[\\s*\(escaped)\\s*\\]\\]"
-        ]
-    }
-
-    private func normalizedPlaceholder(_ value: String) -> String {
-        var trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let wrappers: [(String, String)] = [("{{", "}}"), ("<<", ">>"), ("${", "}"), ("[[", "]]"), ("(", ")")]
-        var didStrip = true
-        while didStrip {
-            didStrip = false
-            for (open, close) in wrappers {
-                if trimmed.hasPrefix(open), trimmed.hasSuffix(close), trimmed.count >= open.count + close.count + 1 {
-                    trimmed = String(trimmed.dropFirst(open.count).dropLast(close.count))
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    didStrip = true
-                    break
-                }
-            }
+        while let last = shortened.last, last.isWhitespace {
+            shortened.removeLast()
         }
-        return trimmed
-    }
-
-    private func sanitizeFileName(_ value: String) -> String {
-        let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
-        let components = value.components(separatedBy: invalidCharacters)
-        return components.joined(separator: "_")
+        return shortened
     }
 
     private func createZipAttachment(files: [URL], jobName: String) throws -> URL? {
         guard !files.isEmpty else { return nil }
-        let zipName = sanitizeFileName("Merged_\(jobName)").appending(".zip")
+        let zipName = Self.combinedFileName(jobName: jobName).dropLast(4).appending(".zip")
         let zipURL = FileManager.default.temporaryDirectory.appending(path: zipName)
         if FileManager.default.fileExists(atPath: zipURL.path) {
             try? FileManager.default.removeItem(at: zipURL)
@@ -853,11 +791,18 @@ final class MergeEngine {
     }
 }
 
-private struct MappingSnapshot: Sendable {
-    let placeholderText: String
-    let columnName: String?
-    let transformation: FieldTransformation
-    let formatString: String?
+struct MappingSnapshot: Sendable {
+    var placeholderText: String
+    var columnName: String?
+    var transformation: FieldTransformation = .none
+    var formatString: String?
+
+    init(placeholderText: String, columnName: String?, transformation: FieldTransformation = .none, formatString: String? = nil) {
+        self.placeholderText = placeholderText
+        self.columnName = columnName
+        self.transformation = transformation
+        self.formatString = formatString
+    }
 
     init(from mapping: FieldMapping) {
         placeholderText = mapping.placeholderText
@@ -869,6 +814,17 @@ private struct MappingSnapshot: Sendable {
 
 struct AttributedTemplate: @unchecked Sendable {
     let value: NSAttributedString
+    /// The template's paper size in points, when the document specifies one.
+    var pageSize: CGSize? = nil
+    /// The template's page margins in points, when the document specifies them.
+    var margins: EdgeInsets? = nil
+}
+
+/// The picture in a template's page header.
+nonisolated struct DOCXHeaderImage: Sendable {
+    var data: Data
+    /// The size Word displays the picture at, in points, when the document specifies it.
+    var size: CGSize?
 }
 
 final class ServiceContainer {

@@ -82,6 +82,12 @@ struct OutputConfigView: View {
                             .foregroundStyle(.primary)
                     }
                     .padding(.top, 2)
+
+                    if job.combineIntoSinglePDF {
+                        Text("The pattern names individual files. A combined PDF is named after the job.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -120,10 +126,11 @@ struct OutputConfigView: View {
     }
 
     private var previewFileName: String {
-        let base = job.outputFileNamePattern
-            .replacing("{Row}", with: "1")
-        let sanitized = FileNameSanitizer.sanitize(base)
-        return "\(sanitized).pdf"
+        MergeEngine.previewFileName(
+            pattern: job.outputFileNamePattern,
+            combinesIntoSinglePDF: job.combineIntoSinglePDF,
+            jobName: job.name
+        )
     }
 
     private func handleFolderImport(_ result: Result<[URL], Error>) {
