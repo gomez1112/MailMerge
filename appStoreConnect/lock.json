@@ -1507,38 +1507,38 @@
       "id": "65afbaca-c73f-4b2f-ae0d-ee624e7311d8",
       "type": "appInfoLocalizations"
     },
-    "appStoreReviewDetail:MAC_OS:1.1.0": {
+    "appStoreReviewDetail:MAC_OS:1.2.0": {
       "fields": {
         "contactEmail": "gerardgomez11@outlook.com",
         "contactFirstName": "Gerard",
         "contactLastName": "Gomez",
-        "contactPhone": "6469388594",
+        "contactPhone": "+1 646 938 8594",
         "demoAccountRequired": false
       },
-      "id": "f3d26e5d-7574-4ca2-883a-1ddaef9212fd",
+      "id": "5161c5b6-e82a-4f7e-874a-2b8827dcbd6b",
       "type": "appStoreReviewDetails"
     },
-    "appStoreVersion:MAC_OS:1.1.0": {
+    "appStoreVersion:MAC_OS:1.2.0": {
       "fields": {
         "copyright": "Gerard Gomez",
         "releaseType": "AFTER_APPROVAL",
-        "versionString": "1.1.0"
+        "versionString": "1.2.0"
       },
-      "id": "7b482f52-ea0d-45f2-93ff-69859735efd8",
+      "id": "5a5b3332-2f38-49a2-a9f1-c9d6c5348929",
       "type": "appStoreVersions"
     },
-    "appStoreVersionLocalization:MAC_OS:1.1.0:en-US": {
+    "appStoreVersionLocalization:MAC_OS:1.2.0:en-US": {
       "fields": {
         "description": "Mergeform lets you turn your existing documents and spreadsheets into thousands of personalized PDFs in just a few clicks.\n\nInstead of manually editing each document, you use the files you already know:\n\n• Start with your own DOCX\n  Use any Word .docx file as a template. Add simple merge fields like {{Name}} or {{Address}} right where you want personalized data to appear.\n\n• Connect an Excel spreadsheet\n  Choose your Excel workbook and select the sheet that holds your data. Each row becomes a personalized document, and each column can fill in a different part of your template.\n\n• Map fields with clarity\n  Match template placeholders to specific spreadsheet columns so you know exactly what will appear where. See at a glance which data is used for names, dates, amounts, and more.\n\n• Preview before you commit\n  Generate a sample PDF to confirm everything looks right before you run the full job. Check formatting, spelling, and layout so there are no surprises later.\n\n• Export exactly what you need\n  Create a separate PDF for every row in your spreadsheet, or export a single combined PDF that contains all generated documents in one file, ready to print or share.\n\nBecause it is built specifically for macOS, Mergeform feels right at home on your Mac:\n\n• Clean, focused interface that stays out of your way\n• Fast processing for large spreadsheets and long documents\n• Reliable PDF output that preserves your fonts and layout\n\nUse Mergeform for:\n\n• Letters: Personalized client letters, school notices, fundraising campaigns\n• Certificates: Event participation, course completion, awards, memberships\n• Invoices and billing: Customized invoices, statements, receipts\n• Reports and forms: Enrollment forms, HR letters, agreements, and more\n\nWith Mergeform, you can go from a single DOCX and a simple spreadsheet to hundreds or thousands of polished PDFs in minutes, without learning new tools or complex systems.",
         "keywords": "doxc,docx,excel,template,bulk,letters,documents,word,sheet,certificate,form,contracts,report,macos",
         "promotionalText": "Turn spreadsheet rows into polished PDFs in minutes. Import a DOCX template, map fields once, preview instantly, then auto-save to folders or send by email.",
         "supportUrl": "https://transfinite.us",
-        "whatsNew": "We redesigned major parts of the app with a new visual system, so everything looks consistent and feels faster to use.\n\nWhat’s new:\n- App navigation updated for smoother, quicker access to every section\n- Jobs overview redesigned to help you spot what matters at a glance\n- Template library refreshed for easier browsing, selection, and starting new jobs\n- Category sheets updated so you can find the right templates in fewer taps\n- Job setup workspace rebuilt to make the full process clearer from start to finish\n\nWe also refreshed the configuration experience:\n- New configuration screens with cleaner layout and more intuitive controls\n- Improved preview and run flow so you can test your setup with less back-and-forth\n- Shared components updated for more consistent behavior across the app\n\nFinally, we updated paywall styling to match the new design system, keeping the upgrade experience visually aligned with the rest of the product."
+        "whatsNew": "Mergeform 1.2 brings a fresh new look, a faster way to find your finished PDFs, and dozens of fixes that make every merge more accurate.\n\nNew\n• A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting\n• After a merge, see which folder your PDFs were saved in and open it in Finder with the new files selected\n• Cancel a merge at any time, and keep its progress while you move between steps\n• Drag and drop templates, spreadsheets, and output folders onto each step\n• Format fields as dates, numbers, or currency, with a live example\n• PDFs use your template’s paper size, margins, and header logo as they appear in Word\n• Mergeform asks before deleting a job (you can turn this off in Settings)\n\nImproved\n• Much better compatibility with real-world Excel workbooks: dates, percentages, ZIP codes with leading zeros, formulas, rich text, and TRUE/FALSE now come through exactly as Excel shows them\n• Smarter field matching that won’t mix up similar names like “Date” and “State”\n• Jobs keep working when you move or rename their template, spreadsheet, or output folder\n• Records that would get the same file name are numbered instead of overwriting each other\n• The relative dates, auto-match, and default file name settings now take effect\n• Lifetime Pro purchases are recognized everywhere in the app\n\nFixed\n• Adding, renaming, and deleting categories in Manage Categories\n• Job menu commands acting on the wrong job, and Command-Delete deleting a job while you type\n• Changing a job’s template now updates its fields\n• Cancelling a subscription purchase no longer closes the upgrade screen\n• Many smaller fixes throughout the app"
       },
-      "id": "cfe72ae2-b3d9-4017-948e-e25e8697b44a",
+      "id": "d3cc95bb-1ebf-40e6-be99-27c971367dc5",
       "type": "appStoreVersionLocalizations"
     },
-    "appStoreVersionPlacementGroup:MAC_OS:1.1.0:en-US:APP_SCREENSHOT:MAC_PROFILE": {
+    "appStoreVersionPlacementGroup:MAC_OS:1.2.0:en-US:APP_SCREENSHOT:MAC_PROFILE": {
       "fields": {
         "appScreenshot": [
           {
@@ -1573,7 +1573,7 @@
           }
         ]
       },
-      "id": "cfe72ae2-b3d9-4017-948e-e25e8697b44a",
+      "id": "d3cc95bb-1ebf-40e6-be99-27c971367dc5",
       "type": "appAssetLibraryPlacements"
     },
     "availability": {
