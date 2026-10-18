@@ -151,8 +151,7 @@ struct DataSourceConfigView: View {
                             Image(systemName: "tablecells")
                                 .font(.system(size: 10, weight: .medium))
                             Text(sheet)
-                                .font(.callout)
-                                .bold(isSelected)
+                                .font(isSelected ? Font.callout.bold() : Font.callout)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
@@ -160,7 +159,7 @@ struct DataSourceConfigView: View {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(isSelected ? Color.mergeformBlue : Color.primary.opacity(0.06))
                         )
-                        .foregroundStyle(isSelected ? .white : .primary)
+                        .foregroundStyle(isSelected ? Color.white : Color.primary)
                     }
                     .buttonStyle(.plain)
                     .animation(.smooth(duration: 0.15), value: isSelected)
