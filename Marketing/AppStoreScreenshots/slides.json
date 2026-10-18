@@ -1,0 +1,48 @@
+{
+  "slides": [
+    {
+      "capture": "01-jobs.png",
+      "output": "01-jobs.png",
+      "title": "Mail merge, made for Mac",
+      "highlight": "made for Mac",
+      "subtitle": "Turn a Word template and a spreadsheet into a stack of polished PDFs."
+    },
+    {
+      "capture": "02-mapping.png",
+      "output": "02-mapping.png",
+      "title": "Fields match themselves",
+      "highlight": "match themselves",
+      "subtitle": "Auto-Match pairs every template field with the right column."
+    },
+    {
+      "capture": "03-data.png",
+      "output": "03-data.png",
+      "title": "Every value, just like Excel",
+      "highlight": "just like Excel",
+      "subtitle": "Dates, currency, percentages, and ZIP codes come through exactly right."
+    },
+    {
+      "capture": "04-run.png",
+      "output": "04-run.png",
+      "badge": "New in 1.2",
+      "title": "Merge in seconds",
+      "highlight": "seconds",
+      "subtitle": "Preview a sample, run the batch, then open your PDFs right in Finder."
+    },
+    {
+      "capture": "05-templates.png",
+      "output": "05-templates.png",
+      "title": "Templates, ready to reuse",
+      "highlight": "ready to reuse",
+      "subtitle": "Start a new job from any template you’ve used before."
+    },
+    {
+      "capture": "06-requests.png",
+      "output": "06-requests.png",
+      "badge": "New",
+      "title": "Shape what’s next",
+      "highlight": "what’s next",
+      "subtitle": "Suggest features and vote on ideas, right inside Mergeform."
+    }
+  ]
+}
