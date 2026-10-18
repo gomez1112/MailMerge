@@ -30,7 +30,7 @@ struct PaywallView: View {
 
     private var paywallHeader: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "bolt.doc.fill")
+            Image(systemName: "doc.badge.gearshape.fill")
                 .font(.title2)
                 .foregroundStyle(.white)
                 .frame(width: 48, height: 48)
@@ -40,7 +40,7 @@ struct PaywallView: View {
                 Text("Mergeform Pro")
                     .font(.title2)
                     .bold()
-                    .foregroundStyle(Color.mergeformInk)
+                    .foregroundStyle(.primary)
                 Text("Higher limits, faster document runs, and advanced output workflows.")
                     .font(.callout)
                     .foregroundStyle(.secondary)

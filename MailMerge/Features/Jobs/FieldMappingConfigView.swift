@@ -232,6 +232,7 @@ private struct MappingRow: View {
                     Text(transform.label).tag(transform)
                 }
             }
+            .labelsHidden()
             .frame(width: 130, alignment: .leading)
 
             // Status indicator

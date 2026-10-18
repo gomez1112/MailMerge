@@ -4,19 +4,20 @@ import AppKit
 
 // MARK: - Brand Colors
 
+// Colors that change between light and dark mode live in Assets.xcassets, and Xcode
+// generates their `Color` symbols:
+// - `mergeformBlue`: primary action blue, brightened in dark mode to stay legible.
+// - `mergeformBackground`: page tint behind work surfaces.
+// - `mergeformPanel`: elevated card fill with a warmer paper tone.
+// - `mergeformStroke`: subtle dividing stroke for cards and controls.
+// - `mergeformSurface`: translucent raised fill, white in light mode and a faint tint
+//   in dark mode. Apply `.opacity(_:)` to set its strength.
+
 extension Color {
-    /// Primary action blue used for focused controls and active workflow states.
-    static let mergeformBlue = Color(red: 0.10, green: 0.38, blue: 0.78)
     /// Warm accent used for attention, automation, and in-progress states.
     static let mergeformOrange = Color(red: 0.93, green: 0.48, blue: 0.18)
-    /// Deep ink used in branded surfaces and document previews.
+    /// Deep ink for the branded sidebars, which stay dark in both appearances.
     static let mergeformInk = Color(red: 0.07, green: 0.09, blue: 0.13)
-    /// Soft page tint used for work surfaces.
-    static let mergeformBackground = Color(red: 0.95, green: 0.96, blue: 0.94)
-    /// Elevated panel fill with a warmer paper tone.
-    static let mergeformPanel = Color(red: 0.99, green: 0.985, blue: 0.965)
-    /// Subtle dividing stroke for cards and controls.
-    static let mergeformStroke = Color.black.opacity(0.08)
 }
 
 extension Text {
@@ -44,7 +45,7 @@ struct SectionHeader: View {
                 .font(.title3)
                 .foregroundStyle(iconColor)
                 .frame(width: 34, height: 34)
-                .background(.white.opacity(0.72), in: .rect(cornerRadius: 8))
+                .background(Color.mergeformSurface.opacity(0.72), in: .rect(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.mergeformStroke)
@@ -54,7 +55,7 @@ struct SectionHeader: View {
                 Text(title)
                     .font(.title2)
                     .bold()
-                    .foregroundStyle(Color.mergeformInk)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
@@ -140,7 +141,7 @@ struct DropTargetView: View {
             .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isHovering ? Color.mergeformBlue.opacity(0.06) : Color.white.opacity(0.45))
+                    .fill(isHovering ? Color.mergeformBlue.opacity(0.06) : Color.mergeformSurface.opacity(0.45))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -462,7 +463,7 @@ struct DataPreviewTable: View {
                 .padding(14)
                 .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.5))
+                        .fill(Color.mergeformSurface.opacity(0.5))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)

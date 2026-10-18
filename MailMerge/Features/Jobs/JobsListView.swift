@@ -206,7 +206,7 @@ struct ContentView: View {
             Spacer()
         }
         .padding()
-        .background(Color.white.opacity(0.42), in: .rect(cornerRadius: 10))
+        .background(Color.mergeformSurface.opacity(0.42), in: .rect(cornerRadius: 10))
     }
 
     // MARK: - Actions
@@ -537,7 +537,7 @@ private struct OverviewMetricCard: View {
                 .font(.largeTitle)
                 .bold()
                 .monospacedDigit()
-                .foregroundStyle(Color.mergeformInk)
+                .foregroundStyle(.primary)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -619,7 +619,7 @@ private struct JobRowView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(job.name)
                     .font(.headline)
-                    .foregroundStyle(Color.mergeformInk)
+                    .foregroundStyle(.primary)
                 Text("Modified \(job.modifiedAt, format: .relative(presentation: .named))")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -736,7 +736,7 @@ private struct CategoryEditorView: View {
             Text(title)
                 .font(.title3)
                 .bold()
-                .foregroundStyle(Color.mergeformInk)
+                .foregroundStyle(.primary)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Name")
@@ -859,7 +859,7 @@ private struct NewJobCategoryPickerView: View {
                 Text("New Job")
                     .font(.title3)
                     .bold()
-                    .foregroundStyle(Color.mergeformInk)
+                    .foregroundStyle(.primary)
                 Text("Name your job and choose a category.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -957,7 +957,7 @@ private struct JobRenameView: View {
             Text("Rename Job")
                 .font(.title3)
                 .bold()
-                .foregroundStyle(Color.mergeformInk)
+                .foregroundStyle(.primary)
             TextField("Job name", text: $name)
                 .textFieldStyle(.roundedBorder)
             HStack {

@@ -124,7 +124,7 @@ struct PreviewConfigView: View {
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(0.5))
+                            .fill(Color.mergeformSurface.opacity(0.5))
                             .frame(minHeight: 550)
                         VStack(spacing: 12) {
                             Image(systemName: "doc.richtext")

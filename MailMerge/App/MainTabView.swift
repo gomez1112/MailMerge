@@ -49,6 +49,8 @@ struct MainTabView: View {
         }
         .listStyle(.sidebar)
         .background(Color.mergeformInk.ignoresSafeArea())
+        // The ink sidebar is dark in both appearances, so its system colors should be too.
+        .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder
@@ -208,7 +210,7 @@ private struct TemplateLibraryView: View {
                     Text("Templates")
                         .font(.largeTitle)
                         .bold()
-                        .foregroundStyle(Color.mergeformInk)
+                        .foregroundStyle(.primary)
                     Text("\(templateItems.count) template\(templateItems.count == 1 ? "" : "s")")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -447,7 +449,7 @@ private struct TemplateCard: View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.68))
+                    .fill(Color.mergeformSurface.opacity(0.68))
                 VStack(spacing: 10) {
                     Image(systemName: "doc.richtext")
                         .font(.largeTitle)
@@ -465,7 +467,7 @@ private struct TemplateCard: View {
                 Text(item.fileName)
                     .font(.headline)
                     .lineLimit(2)
-                    .foregroundStyle(Color.mergeformInk)
+                    .foregroundStyle(.primary)
                 HStack(spacing: 4) {
                     Text("Last used \(item.lastUsed, format: .dateTime.month().day().year())")
                         .font(.caption)

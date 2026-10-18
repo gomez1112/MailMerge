@@ -138,6 +138,8 @@ struct JobDetailView: View {
             }
         }
         .background(Color.mergeformInk)
+        // The ink sidebar is dark in both appearances, so its system colors should be too.
+        .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder
