@@ -21,6 +21,10 @@ struct JobDetailView: View {
             .onChange(of: job.selectedSheetName) { _, _ in updateStatus() }
             .onChange(of: job.outputFolderBookmarkData) { _, _ in updateStatus() }
             .onChange(of: job.fieldMappings.count) { _, _ in updateStatus() }
+            .onChange(of: job.mappedFieldCount) { _, _ in updateStatus() }
+            .task(id: ColumnSource(bookmarkData: job.dataSourceBookmarkData, sheetName: job.selectedSheetName)) {
+                await loadColumnsIfNeeded()
+            }
     }
 
     private var contentWithMetadata: some View {
@@ -239,10 +243,10 @@ struct JobDetailView: View {
 
     private func stepCompletion(_ step: MergeStep) -> Bool {
         switch step {
-        case .template: return job.templateBookmarkData != nil
-        case .dataSource: return job.dataSourceBookmarkData != nil
-        case .fieldMapping: return !job.fieldMappings.isEmpty
-        case .output: return job.outputFolderBookmarkData != nil
+        case .template: return job.hasTemplate
+        case .dataSource: return job.hasDataSource
+        case .fieldMapping: return job.hasFieldMappings
+        case .output: return job.hasOutputFolder
         case .preview: return job.isConfigured
         }
     }
@@ -253,10 +257,38 @@ struct JobDetailView: View {
         // For partially configured jobs, enforce sequential unlocking.
         switch step {
         case .template: return true
-        case .dataSource: return job.templateBookmarkData != nil
-        case .fieldMapping: return job.dataSourceBookmarkData != nil
-        case .output: return !job.fieldMappings.isEmpty
-        case .preview: return job.outputFolderBookmarkData != nil
+        case .dataSource: return job.hasTemplate
+        case .fieldMapping: return job.hasDataSource
+        case .output: return job.hasFieldMappings
+        case .preview: return job.hasOutputFolder
+        }
+    }
+
+    // MARK: - Columns
+
+    private struct ColumnSource: Hashable {
+        var bookmarkData: Data?
+        var sheetName: String?
+    }
+
+    /// Loads the selected sheet's column names, which aren't saved with the job, so every
+    /// step can offer them right after the app relaunches.
+    private func loadColumnsIfNeeded() async {
+        guard job.availableColumns.isEmpty,
+              let bookmarkData = job.dataSourceBookmarkData,
+              let sheetName = job.selectedSheetName else {
+            return
+        }
+        do {
+            let headers = try await services.mergeEngine.getColumnHeaders(bookmarkData: bookmarkData, sheetName: sheetName)
+            guard !Task.isCancelled, job.selectedSheetName == sheetName else { return }
+            job.updateAvailableColumns(headers)
+        } catch is CancellationError {
+            return
+        } catch {
+            handleError(error) {
+                Task { await loadColumnsIfNeeded() }
+            }
         }
     }
 

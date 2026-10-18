@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import SwiftData
 import OnboardingKit
@@ -29,17 +30,20 @@ struct MailMergeApp: App {
         let storeURL = Self.storeURL()
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         do {
-            container = try ModelContainer(
+            let modelContainer = try ModelContainer(
                 for: schema,
                 migrationPlan: MailMergeMigrationPlan.self,
                 configurations: [configuration]
             )
+            container = modelContainer
+            Self.resetInterruptedRuns(in: modelContainer)
         } catch {
             if let fallbackContainer = try? ModelContainer(
                 for: schema,
                 configurations: [configuration]
             ) {
                 container = fallbackContainer
+                Self.resetInterruptedRuns(in: fallbackContainer)
             } else {
                 container = nil
                 _loadError = State(initialValue: error)
@@ -49,6 +53,19 @@ struct MailMergeApp: App {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    /// A merge can't still be running at launch, so a job marked "Running" was
+    /// interrupted by a quit or crash.
+    private static func resetInterruptedRuns(in container: ModelContainer) {
+        do {
+            try MailMergeJob.resetInterruptedRuns(in: container.mainContext)
+        } catch {
+            // The jobs keep their "Running" badge until they're run again; nothing
+            // else depends on it, so launching continues.
+            Logger(subsystem: "com.transfinite.MailMerge", category: "Persistence")
+                .error("Couldn't reset interrupted merges: \(error.localizedDescription)")
+        }
     }
 
     var body: some Scene {

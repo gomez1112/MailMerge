@@ -69,12 +69,9 @@ final class MailMergeJob {
         self.category = category
     }
 
+    /// Every setup step is complete and the job can run.
     var isConfigured: Bool {
-        templateBookmarkData != nil
-            && dataSourceBookmarkData != nil
-            && selectedSheetName != nil
-            && !fieldMappings.isEmpty
-            && outputFolderBookmarkData != nil
+        hasTemplate && hasDataSource && hasFieldMappings && hasOutputFolder
     }
 
     /// Re-creates bookmarks to files that moved or were renamed since they were picked,
@@ -100,7 +97,7 @@ final class MailMergeJob {
         if templateBookmarkData != nil { score += 1 }
         if dataSourceBookmarkData != nil { score += 1 }
         if selectedSheetName != nil { score += 1 }
-        if !fieldMappings.isEmpty { score += 1 }
+        if hasFieldMappings { score += 1 }
         if outputFolderBookmarkData != nil { score += 1 }
         return score / total
     }
@@ -209,6 +206,35 @@ enum FieldTransformation: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Whether this transformation uses a format: a date pattern, a number pattern, or
+    /// a currency code.
+    var usesFormatString: Bool {
+        switch self {
+        case .dateFormat, .numberFormat, .currencyFormat: return true
+        default: return false
+        }
+    }
+
+    /// The format a mapping starts with when this transformation is chosen.
+    func defaultFormatString(locale: Locale = .current) -> String? {
+        switch self {
+        case .dateFormat: return "MMMM d, yyyy"
+        case .numberFormat: return "#,##0.00"
+        case .currencyFormat: return locale.currency?.identifier ?? "USD"
+        default: return nil
+        }
+    }
+
+    /// What the format field asks for, with an example.
+    var formatPrompt: String {
+        switch self {
+        case .dateFormat: return "Date pattern, e.g. MMMM d, yyyy"
+        case .numberFormat: return "Number pattern, e.g. #,##0.00"
+        case .currencyFormat: return "Currency code, e.g. USD"
+        default: return ""
+        }
+    }
+
     var label: String {
         switch self {
         case .none: return "None"
@@ -231,30 +257,57 @@ enum FieldTransformation: String, Codable, CaseIterable, Identifiable {
         case .lowercase:
             return value.lowercased()
         case .titlecase:
-            return value.capitalized
+            return Self.titleCased(value)
         case .trim:
             return value.trimmingCharacters(in: .whitespacesAndNewlines)
         case .dateFormat:
-            guard let formatString, let date = DateParser.parse(value) else { return value }
+            guard let formatString, !formatString.isEmpty, let date = DateParser.parse(value) else { return value }
+            // The pattern is user-entered at runtime, which Date.FormatStyle can't take.
             let formatter = DateFormatter()
+            formatter.timeZone = .gmt
             formatter.dateFormat = formatString
             return formatter.string(from: date)
         case .numberFormat:
-            guard let formatString, let number = Double(value) else { return value }
+            guard let formatString, !formatString.isEmpty, let number = Self.parseNumber(value) else { return value }
+            // A user-entered ICU pattern like "#,##0.00" needs NumberFormatter.
             let formatter = NumberFormatter()
             formatter.positiveFormat = formatString
             return formatter.string(from: NSNumber(value: number)) ?? value
         case .currencyFormat:
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .currency
-            if let formatString {
-                formatter.currencyCode = formatString
-            }
-            if let number = Double(value) {
-                return formatter.string(from: NSNumber(value: number)) ?? value
-            }
-            return value
+            guard let number = Self.parseNumber(value) else { return value }
+            let requestedCode = formatString?.trimmingCharacters(in: .whitespaces).uppercased()
+            let code = requestedCode.flatMap { $0.count == 3 && $0.allSatisfy(\.isLetter) ? $0 : nil }
+                ?? Locale.current.currency?.identifier
+                ?? "USD"
+            return number.formatted(.currency(code: code))
         }
+    }
+
+    /// Capitalizes the first letter of each word and lowercases the rest. A letter after
+    /// a digit or apostrophe continues its word, so "3rd" and "o'neil" stay intact, while
+    /// hyphens start a new word ("Mary-Jane").
+    private static func titleCased(_ value: String) -> String {
+        var result = ""
+        var previous: Character?
+        for character in value {
+            if character.isLetter {
+                let continuesWord = previous.map { $0.isLetter || $0.isNumber || $0 == "'" || $0 == "\u{2019}" } ?? false
+                result += continuesWord ? character.lowercased() : character.uppercased()
+            } else {
+                result.append(character)
+            }
+            previous = character
+        }
+        return result
+    }
+
+    /// Reads plain numbers ("1234.5") and numbers with grouping separators ("1,234.5").
+    /// Text like "NaN" or "inf" isn't a number in a mail merge.
+    private static func parseNumber(_ value: String) -> Double? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let number = Double(trimmed) ?? (try? Double(trimmed, format: .number))
+        guard let number, number.isFinite else { return nil }
+        return number
     }
 }
 
@@ -328,21 +381,50 @@ enum MergeStep: Int, CaseIterable, Identifiable {
     }
 }
 
+/// Reads the date text that appears in spreadsheets: the region's numeric dates (as the
+/// spreadsheet reader writes them), ISO 8601, written-out English month names, and Unix
+/// timestamps. Dates are midnight UTC so formatting them never shifts the day.
 enum DateParser {
-    static func parse(_ value: String) -> Date? {
+    static func parse(_ value: String, locale: Locale = .current) -> Date? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let timestamp = TimeInterval(trimmed) {
-            return Date(timeIntervalSince1970: timestamp)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let number = TimeInterval(trimmed) {
+            // Only ten-digit (or longer) numbers are timestamps; shorter ones are years,
+            // ZIP codes, or Excel serial numbers, not dates.
+            return abs(number) >= 1_000_000_000 ? Date(timeIntervalSince1970: number) : nil
         }
-        let formats = ["yyyy-MM-dd", "MM/dd/yyyy", "MMM d, yyyy"]
-        let formatter = DateFormatter()
-        for format in formats {
-            formatter.dateFormat = format
-            if let date = formatter.date(from: trimmed) {
+        if let date = try? Date(trimmed, strategy: .iso8601) {
+            return date
+        }
+
+        let hasFourDigitYear = trimmed.split(whereSeparator: { !$0.isNumber }).contains { $0.count == 4 }
+        let regionalPattern = DateFormatter.dateFormat(fromTemplate: "yMd", options: 0, locale: locale) ?? "M/d/y"
+        let numericPattern = regionalPattern.replacing(/y+/, with: hasFourDigitYear ? "yyyy" : "yy")
+        if let date = date(from: trimmed, pattern: numericPattern, locale: locale) {
+            return date
+        }
+
+        let englishPatterns = [
+            "yyyy-MM-dd", "MMM d, yyyy", "MMMM d, yyyy", "MMM d yyyy", "d MMM yyyy", "d MMMM yyyy",
+            hasFourDigitYear ? "M/d/yyyy" : "M/d/yy"
+        ]
+        for pattern in englishPatterns {
+            if let date = date(from: trimmed, pattern: pattern, locale: Locale(identifier: "en_US_POSIX")) {
                 return date
             }
         }
         return nil
+    }
+
+    private static func date(from text: String, pattern: String, locale: Locale) -> Date? {
+        // Patterns are chosen at runtime from the region, which needs DateFormatter.
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = .gmt
+        formatter.isLenient = false
+        formatter.dateFormat = pattern
+        return formatter.date(from: text)
     }
 }
 

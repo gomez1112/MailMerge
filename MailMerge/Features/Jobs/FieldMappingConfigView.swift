@@ -1,13 +1,16 @@
 import SwiftUI
 
 struct FieldMappingConfigView: View {
-    @Environment(\.services) private var services
     @Bindable var job: MailMergeJob
     @State private var isAutoMatching = false
-    @State private var isLoadingColumns = false
 
     private var mappedCount: Int {
-        job.fieldMappings.filter { $0.isMapped }.count
+        job.mappedFieldCount
+    }
+
+    /// Fields in a stable order. SwiftData doesn't keep the order of a relationship.
+    private var sortedMappings: [FieldMapping] {
+        job.fieldMappings.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 
     var body: some View {
@@ -37,7 +40,7 @@ struct FieldMappingConfigView: View {
                             }
                         }
                         .font(.callout)
-                        .disabled(job.availableColumns.isEmpty || isAutoMatching || isLoadingColumns)
+                        .disabled(job.availableColumns.isEmpty || isAutoMatching)
                     }
                     MappingProgressView(mappedCount: mappedCount, totalCount: job.fieldMappings.count)
                 }
@@ -58,17 +61,19 @@ struct FieldMappingConfigView: View {
                         }
                         .padding(.vertical, 8)
                     } else {
+                        if job.availableColumns.isEmpty {
+                            Label("Choose a sheet in Data Source to load its columns.", systemImage: "tablecells")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
                         mappingTableHeader
                         Divider()
-                        ForEach(job.fieldMappings) { mapping in
+                        let mappings = sortedMappings
+                        ForEach(mappings) { mapping in
                             MappingRow(mapping: mapping, availableColumns: job.availableColumns)
-                            if mapping.id != job.fieldMappings.last?.id {
+                            if mapping.id != mappings.last?.id {
                                 Divider()
-                                    .padding(.leading, 32)
                             }
-                        }
-                        .onMove { from, to in
-                            job.fieldMappings.move(fromOffsets: from, toOffset: to)
                         }
                     }
                 }
@@ -77,15 +82,10 @@ struct FieldMappingConfigView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: job.selectedSheetName) {
-            await loadColumnsIfNeeded()
-        }
     }
 
     private var mappingTableHeader: some View {
         HStack(spacing: 0) {
-            Text("")
-                .frame(width: 28)
             Text("Placeholder")
                 .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "arrow.right")
@@ -95,7 +95,7 @@ struct FieldMappingConfigView: View {
             Text("Column")
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("Transform")
-                .frame(width: 130, alignment: .leading)
+                .frame(width: 160, alignment: .leading)
             Text("Status")
                 .frame(width: 70, alignment: .center)
         }
@@ -109,86 +109,19 @@ struct FieldMappingConfigView: View {
 
     private func autoMatch() {
         isAutoMatching = true
-        let columnCandidates = job.availableColumns
-        for mapping in job.fieldMappings {
-            if mapping.columnName != nil { continue }
-            let target = normalized(mapping.displayName)
-            let scored = columnCandidates.map { column in
-                (column, similarity(normalized(column), target))
-            }
-            if let best = scored.max(by: { $0.1 < $1.1 }), best.1 >= 0.6 {
-                mapping.columnName = best.0
-                mapping.isAutoMatched = true
-                mapping.matchConfidence = best.1
-            }
+        let unmapped = job.fieldMappings.filter { $0.columnName == nil }
+        let matches = FieldAutoMatcher.matches(
+            fields: unmapped.map(\.displayName),
+            columns: job.availableColumns,
+            columnsInUse: Set(job.fieldMappings.compactMap(\.columnName))
+        )
+        for mapping in unmapped {
+            guard let match = matches[mapping.displayName] else { continue }
+            mapping.columnName = match.column
+            mapping.isAutoMatched = true
+            mapping.matchConfidence = match.confidence
         }
         isAutoMatching = false
-    }
-
-    @MainActor
-    private func applyAvailableColumns(_ headers: [String]) {
-        let cleanedHeaders = headers
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        var seen: Set<String> = []
-        let uniqueHeaders = cleanedHeaders.filter { seen.insert($0).inserted }
-        job.availableColumns = uniqueHeaders
-    }
-
-    private func loadColumnsIfNeeded() async {
-        guard job.availableColumns.isEmpty,
-              let bookmarkData = job.dataSourceBookmarkData,
-              let sheetName = job.selectedSheetName else {
-            return
-        }
-        isLoadingColumns = true
-        do {
-            let headers = try await services.mergeEngine.getColumnHeaders(
-                bookmarkData: bookmarkData,
-                sheetName: sheetName
-            )
-            await MainActor.run {
-                applyAvailableColumns(headers)
-                isLoadingColumns = false
-            }
-        } catch {
-            await MainActor.run {
-                isLoadingColumns = false
-            }
-        }
-    }
-
-    private func normalized(_ value: String) -> String {
-        value
-            .lowercased()
-            .replacing("_", with: " ")
-            .replacing("-", with: " ")
-            .replacing(" ", with: "")
-    }
-
-    private func similarity(_ lhs: String, _ rhs: String) -> Double {
-        guard !lhs.isEmpty, !rhs.isEmpty else { return 0 }
-        let distance = levenshteinDistance(lhs, rhs)
-        let maxLength = max(lhs.count, rhs.count)
-        return 1 - (Double(distance) / Double(maxLength))
-    }
-
-    private func levenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
-        let lhsChars = Array(lhs)
-        let rhsChars = Array(rhs)
-        var matrix = Array(repeating: Array(repeating: 0, count: rhsChars.count + 1), count: lhsChars.count + 1)
-        for i in 0...lhsChars.count { matrix[i][0] = i }
-        for j in 0...rhsChars.count { matrix[0][j] = j }
-        for i in 1...lhsChars.count {
-            for j in 1...rhsChars.count {
-                if lhsChars[i - 1] == rhsChars[j - 1] {
-                    matrix[i][j] = matrix[i - 1][j - 1]
-                } else {
-                    matrix[i][j] = min(matrix[i - 1][j], matrix[i][j - 1], matrix[i - 1][j - 1]) + 1
-                }
-            }
-        }
-        return matrix[lhsChars.count][rhsChars.count]
     }
 }
 
@@ -199,13 +132,18 @@ private struct MappingRow: View {
     let availableColumns: [String]
 
     var body: some View {
-        let columns = resolvedColumns
-        HStack(spacing: 0) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 11))
-                .foregroundStyle(.quaternary)
-                .frame(width: 28)
+        VStack(alignment: .trailing, spacing: 6) {
+            fieldRow
+            if mapping.transformation.usesFormatString {
+                formatRow
+            }
+        }
+        .padding(.vertical, 8)
+    }
 
+    private var fieldRow: some View {
+        let columns = resolvedColumns
+        return HStack(spacing: 0) {
             Text(mapping.displayName)
                 .font(.callout)
                 .bold()
@@ -218,7 +156,7 @@ private struct MappingRow: View {
                 .foregroundStyle(mapping.isMapped ? Color.mergeformBlue : Color.secondary.opacity(0.3))
                 .frame(width: 28)
 
-            Picker("Column", selection: $mapping.columnName) {
+            Picker("Column", selection: columnSelection) {
                 Text("Unmapped").tag(String?.none)
                 ForEach(columns, id: \.self) { column in
                     Text(column).tag(Optional(column))
@@ -227,13 +165,13 @@ private struct MappingRow: View {
             .labelsHidden()
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Picker("Transform", selection: $mapping.transformation) {
+            Picker("Transform", selection: transformationSelection) {
                 ForEach(FieldTransformation.allCases) { transform in
                     Text(transform.label).tag(transform)
                 }
             }
             .labelsHidden()
-            .frame(width: 130, alignment: .leading)
+            .frame(width: 160, alignment: .leading)
 
             // Status indicator
             HStack(spacing: 4) {
@@ -253,7 +191,61 @@ private struct MappingRow: View {
             .font(.system(size: 13))
             .frame(width: 70, alignment: .center)
         }
-        .padding(.vertical, 8)
+    }
+
+    private var formatRow: some View {
+        HStack(spacing: 8) {
+            Text("Format")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Format", text: formatText, prompt: Text(mapping.transformation.formatPrompt))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .font(.caption.monospaced())
+                .frame(maxWidth: 220)
+            Text("e.g. \(formatExample)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(minWidth: 120, alignment: .leading)
+        }
+        .padding(.trailing, 70)
+    }
+
+    /// Choosing a column by hand clears the auto-match marker.
+    private var columnSelection: Binding<String?> {
+        Binding {
+            mapping.columnName
+        } set: { newValue in
+            mapping.columnName = newValue
+            mapping.isAutoMatched = false
+            mapping.matchConfidence = 0
+        }
+    }
+
+    /// Choosing a formatting transformation starts it with a sensible format.
+    private var transformationSelection: Binding<FieldTransformation> {
+        Binding {
+            mapping.transformation
+        } set: { newValue in
+            guard newValue != mapping.transformation else { return }
+            mapping.transformation = newValue
+            mapping.formatString = newValue.defaultFormatString()
+        }
+    }
+
+    private var formatText: Binding<String> {
+        Binding {
+            mapping.formatString ?? ""
+        } set: { newValue in
+            mapping.formatString = newValue.isEmpty ? nil : newValue
+        }
+    }
+
+    /// What a sample value looks like with the current format.
+    private var formatExample: String {
+        let sample = mapping.transformation == .dateFormat ? "2024-01-15" : "1234.5"
+        return mapping.transformation.apply(to: sample, formatString: mapping.formatString)
     }
 
     private var resolvedColumns: [String] {

@@ -350,23 +350,7 @@ struct ContentView: View {
     private func ensureDefaultCategoriesIfNeeded() {
         guard !hasEnsuredDefaults else { return }
         hasEnsuredDefaults = true
-        if categories.isEmpty {
-            for seed in DefaultCategorySeed.defaults {
-                let category = Category(
-                    name: seed.name,
-                    systemImageName: seed.systemImageName,
-                    colorName: seed.colorName,
-                    sortOrder: seed.sortOrder,
-                    isLocked: seed.isLocked
-                )
-                modelContext.insert(category)
-            }
-        }
-        if let uncategorizedCategory {
-            for job in jobs where job.category == nil {
-                job.category = uncategorizedCategory
-            }
-        }
+        Category.ensureDefaults(categories: categories, jobs: jobs, in: modelContext)
     }
 
     private var uncategorizedCategory: Category? {
@@ -480,11 +464,7 @@ struct ContentView: View {
     }
 
     private func deleteCategory(_ category: Category) {
-        guard let fallback = uncategorizedCategory else { return }
-        for job in jobs where job.category?.id == category.id {
-            job.category = fallback
-        }
-        modelContext.delete(category)
+        Category.delete(category, jobs: jobs, fallback: uncategorizedCategory, in: modelContext)
     }
 
     private func moveCategory(from offsets: IndexSet, to destination: Int) {
@@ -581,6 +561,7 @@ private struct CategoryHeaderView: View {
         .contextMenu {
             Button("Rename") { onEdit() }
             Button("Delete", role: .destructive) { onDelete() }
+                .disabled(category.isLocked)
         }
     }
 }
@@ -989,23 +970,6 @@ private enum CategoryEditorMode {
         case .edit: return "Edit Category"
         }
     }
-}
-
-private struct DefaultCategorySeed {
-    let name: String
-    let systemImageName: String
-    let colorName: String
-    let sortOrder: Int
-    let isLocked: Bool
-
-    static let defaults: [DefaultCategorySeed] = [
-        DefaultCategorySeed(name: "Uncategorized", systemImageName: "tray", colorName: "gray", sortOrder: 0, isLocked: true),
-        DefaultCategorySeed(name: "Personal", systemImageName: "person", colorName: "blue", sortOrder: 1, isLocked: false),
-        DefaultCategorySeed(name: "Work", systemImageName: "briefcase", colorName: "purple", sortOrder: 2, isLocked: false),
-        DefaultCategorySeed(name: "Marketing", systemImageName: "megaphone", colorName: "orange", sortOrder: 3, isLocked: false),
-        DefaultCategorySeed(name: "Events", systemImageName: "calendar", colorName: "green", sortOrder: 4, isLocked: false),
-        DefaultCategorySeed(name: "Archived", systemImageName: "archivebox", colorName: "brown", sortOrder: 5, isLocked: false)
-    ]
 }
 
 private struct CategoryIconOption: Identifiable {

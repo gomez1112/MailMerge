@@ -1,7 +1,9 @@
 import SwiftUI
+import SwiftData
 import UniformTypeIdentifiers
 
 struct TemplateConfigView: View {
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.services) private var services
     @Bindable var job: MailMergeJob
     let onError: (Error, (() -> Void)?) -> Void
@@ -157,6 +159,8 @@ struct TemplateConfigView: View {
         job.templateFileName = url.lastPathComponent
         job.modifiedAt = Date()
         detectedPlaceholders = []
+        // Fields from the previous template no longer apply, so rescan right away.
+        scanTemplate()
     }
 
     private func scanTemplate() {
@@ -184,17 +188,7 @@ struct TemplateConfigView: View {
     }
 
     private func syncMappings(with placeholders: [String]) {
-        let cleanedPlaceholders = placeholders
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let existing = Set(job.fieldMappings.map { $0.placeholderText })
-        let toAdd = cleanedPlaceholders.filter { !existing.contains($0) }
-        if !toAdd.isEmpty {
-            for placeholder in toAdd {
-                let mapping = FieldMapping(placeholderText: placeholder, job: job)
-                job.fieldMappings.append(mapping)
-            }
-        }
+        job.syncFieldMappings(with: placeholders, in: modelContext)
     }
 }
 

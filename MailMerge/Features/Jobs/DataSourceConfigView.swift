@@ -135,6 +135,12 @@ struct DataSourceConfigView: View {
         .dropDestination(for: URL.self) { urls, _ in
             handleDrop(urls)
         }
+        .task {
+            // Show the selected sheet's preview again when returning to this step.
+            if let sheetName = job.selectedSheetName, previewData.headers.isEmpty {
+                loadPreview(sheetName: sheetName)
+            }
+        }
     }
 
     // MARK: - Sheet Selector
@@ -210,69 +216,54 @@ struct DataSourceConfigView: View {
         job.selectedSheetName = nil
         previewData = SheetData(headers: [], rows: [])
         job.modifiedAt = Date()
+        loadSheetNames()
     }
 
     private func loadSheetNames() {
         guard let bookmarkData = job.dataSourceBookmarkData else { return }
         isLoadingSheets = true
-        Task.detached(priority: .utility) {
+        Task {
             do {
                 let names = try await services.mergeEngine.getSheetNames(bookmarkData: bookmarkData)
-                await MainActor.run {
-                    job.availableSheets = names
-                    isLoadingSheets = false
+                job.availableSheets = names
+                // A workbook with one sheet has nothing to choose.
+                if job.selectedSheetName == nil, names.count == 1 {
+                    job.selectedSheetName = names[0]
                 }
             } catch {
-                await MainActor.run {
-                    onError(error, { loadSheetNames() })
-                    isLoadingSheets = false
-                }
+                onError(error, { loadSheetNames() })
             }
+            isLoadingSheets = false
         }
     }
 
     private func loadPreview(sheetName: String) {
         guard let bookmarkData = job.dataSourceBookmarkData else { return }
         isLoadingPreview = true
-        Task.detached(priority: .utility) {
+        Task {
             do {
                 let preview = try await services.mergeEngine.getSheetPreview(
                     bookmarkData: bookmarkData,
                     sheetName: sheetName,
                     rowCount: 5
                 )
-                await MainActor.run {
-                    previewData = preview
-                    let cleanedHeaders = preview.headers
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { !$0.isEmpty }
-                    var seen: Set<String> = []
-                    let uniqueHeaders = cleanedHeaders.filter { seen.insert($0).inserted }
-                    job.availableColumns = uniqueHeaders
-                    normalizeColumnMappings(using: uniqueHeaders)
-                    isLoadingPreview = false
-                }
+                // Ignore a result for a sheet that's no longer selected.
+                guard job.selectedSheetName == sheetName else { return }
+                previewData = preview
+                job.updateAvailableColumns(preview.headers)
             } catch {
-                await MainActor.run {
-                    onError(error, { loadPreview(sheetName: sheetName) })
-                    isLoadingPreview = false
+                // A sheet that can't be read can't be merged, so don't leave it selected
+                // with the previous sheet's preview and columns.
+                if job.selectedSheetName == sheetName {
+                    job.selectedSheetName = nil
                 }
+                onError(error, { loadPreview(sheetName: sheetName) })
             }
+            isLoadingPreview = false
         }
     }
 
     private func isValidXlsxURL(_ url: URL) -> Bool {
         url.pathExtension.lowercased() == "xlsx"
-    }
-
-    private func normalizeColumnMappings(using headers: [String]) {
-        let headerSet = Set(headers)
-        for mapping in job.fieldMappings {
-            if let columnName = mapping.columnName, !headerSet.contains(columnName) {
-                mapping.columnName = nil
-                mapping.isAutoMatched = false
-                mapping.matchConfidence = 0
-            }
-        }
     }
 }

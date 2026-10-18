@@ -278,6 +278,17 @@ struct PreviewConfigView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                if job.isConfigured, unmappedFieldCount > 0 {
+                    Label(
+                        unmappedFieldCount == 1
+                            ? "1 field isn't mapped and will be left blank."
+                            : "\(unmappedFieldCount) fields aren't mapped and will be left blank.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+
                 if isMerging {
                     Button {
                         cancelMerge()
@@ -403,6 +414,10 @@ struct PreviewConfigView: View {
     }
 
     private var hasPreview: Bool { previewData != nil }
+
+    private var unmappedFieldCount: Int {
+        job.fieldMappings.count - job.mappedFieldCount
+    }
     
     private func cancelMerge() {
         mergeProgressTracker?.cancel()
