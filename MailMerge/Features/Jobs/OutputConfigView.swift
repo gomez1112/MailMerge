@@ -30,7 +30,8 @@ struct OutputConfigView: View {
                             fileName: folderName,
                             subtitle: "PDFs are saved here",
                             systemImageName: "folder.fill",
-                            color: .mergeformOrange
+                            color: .mergeformOrange,
+                            onReveal: revealOutputFolder
                         ) {
                             showingFolderPicker = true
                         }
@@ -176,6 +177,14 @@ struct OutputConfigView: View {
         }
     }
 
+    private func revealOutputFolder() {
+        guard let bookmark = job.outputFolderBookmarkData else { return }
+        do {
+            try SecurityScopedAccess.revealInFinder(folderBookmark: bookmark)
+        } catch {
+            presentOutputError("The output folder can't be found. It may have been moved, renamed, or deleted. Choose it again with Change….")
+        }
+    }
 
     private func presentOutputError(_ message: String) {
         errorMessage = message

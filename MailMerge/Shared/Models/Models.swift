@@ -347,7 +347,13 @@ struct SheetData: Equatable {
 }
 
 struct MergeResult {
-    let outputURL: URL?
+    /// The names of the PDFs the merge saved, in record order. A combined merge saves one.
+    let savedFileNames: [String]
+    /// The name of the folder the PDFs were saved in.
+    let outputFolderName: String
+    /// A bookmark to that folder, for showing the PDFs in Finder after the merge has
+    /// given up access to it.
+    let outputFolderBookmark: Data
     let attachmentURL: URL?
     let recordCount: Int
     let duration: TimeInterval

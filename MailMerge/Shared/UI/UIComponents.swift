@@ -108,6 +108,8 @@ struct SelectedFileRow: View {
     let subtitle: String
     let systemImageName: String
     let color: Color
+    /// Shows the file in Finder. The row has no Show in Finder button without it.
+    var onReveal: (() -> Void)? = nil
     let onChangeTap: () -> Void
 
     @State private var isConfirmed = false
@@ -130,6 +132,12 @@ struct SelectedFileRow: View {
                 .font(.caption)
             }
             Spacer(minLength: Metrics.regular)
+            if let onReveal {
+                Button("Show in Finder", systemImage: "folder", action: onReveal)
+                    .labelStyle(.iconOnly)
+                    .help("Show in Finder")
+                    .controlSize(.small)
+            }
             Button("Change…", action: onChangeTap)
                 .controlSize(.small)
         }

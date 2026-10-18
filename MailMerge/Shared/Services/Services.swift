@@ -501,7 +501,9 @@ final class MergeEngine {
             let attachmentURL = FileManager.default.temporaryDirectory.appending(path: fileURL.lastPathComponent)
             try data.write(to: attachmentURL)
             return MergeResult(
-                outputURL: fileURL,
+                savedFileNames: [fileURL.lastPathComponent],
+                outputFolderName: outputFolderURL.lastPathComponent,
+                outputFolderBookmark: outputBookmarkData,
                 attachmentURL: attachmentURL,
                 recordCount: totalRecords,
                 duration: Date().timeIntervalSince(start)
@@ -534,7 +536,9 @@ final class MergeEngine {
         try Task.checkCancellation()
         let attachmentURL = try createZipAttachment(files: outputFiles, jobName: jobName)
         return MergeResult(
-            outputURL: outputFiles.last,
+            savedFileNames: outputFiles.map(\.lastPathComponent),
+            outputFolderName: outputFolderURL.lastPathComponent,
+            outputFolderBookmark: outputBookmarkData,
             attachmentURL: attachmentURL,
             recordCount: totalRecords,
             duration: Date().timeIntervalSince(start)
@@ -849,6 +853,18 @@ enum SecurityScopedAccess {
 
     nonisolated static func stopAccessing(_ url: URL) {
         url.stopAccessingSecurityScopedResource()
+    }
+
+    /// Opens a Finder window on a bookmarked folder with `fileNames` in it selected.
+    /// Files that were moved or deleted since are skipped; when none are left, the folder
+    /// itself is selected.
+    static func revealInFinder(folderBookmark: Data, selecting fileNames: [String] = []) throws {
+        let folder = try startAccessing(bookmarkData: folderBookmark)
+        defer { stopAccessing(folder) }
+        let files = fileNames
+            .map { folder.appending(path: $0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        NSWorkspace.shared.activateFileViewerSelecting(files.isEmpty ? [folder] : files)
     }
 
     /// Creates a security-scoped bookmark for a file the user picked or dropped, so the

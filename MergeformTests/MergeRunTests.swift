@@ -20,6 +20,20 @@ struct MergeRunTests {
         #expect(fixture.job.lastRunRecordCount == 3)
     }
 
+    @Test("A merge reports where it saved the PDFs, so they can be shown in Finder", arguments: [false, true])
+    func reportsSavedFiles(singleDocument: Bool) async throws {
+        let fixture = try MergeFixture(recordCount: 2)
+        defer { fixture.remove() }
+
+        let result = try await MergeFixture.makeEngine().performMerge(job: fixture.job, singleDocument: singleDocument, progress: { _ in })
+
+        #expect(result.savedFileNames == fixture.outputFileNames)
+        #expect(result.outputFolderName == fixture.outputFolder.lastPathComponent)
+        let folderPath = try #require(SecurityScopedAccess.filePath(for: result.outputFolderBookmark))
+        // The temporary folder is reached through a symbolic link, so compare real paths.
+        #expect(URL(filePath: folderPath).resolvingSymlinksInPath().path == fixture.outputFolder.resolvingSymlinksInPath().path)
+    }
+
     @Test("Cancelling a merge stops it and doesn't mark the job failed")
     func cancellingStopsTheMerge() async throws {
         let fixture = try MergeFixture(recordCount: 40)

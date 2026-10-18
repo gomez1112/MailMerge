@@ -19,6 +19,8 @@ struct PreviewConfigView: View {
     @State private var emailSubject = "Merged Documents"
     @State private var emailBody = "Hi,\n\nAttached are the merged documents.\n\nThanks!"
     @State private var sendAfterMerge = false
+    @State private var showingRevealError = false
+    @State private var revealErrorMessage = ""
 
     /// This job's latest merge, which outlives this view.
     private var run: MergeRun? {
@@ -88,6 +90,11 @@ struct PreviewConfigView: View {
             Button("OK") { }
         } message: {
             Text(emailErrorMessage)
+        }
+        .alert("Couldn’t Show the PDFs", isPresented: $showingRevealError) {
+            Button("OK") { }
+        } message: {
+            Text(revealErrorMessage)
         }
     }
 
@@ -270,10 +277,26 @@ struct PreviewConfigView: View {
                 CompletionMark()
                 Text("Merge complete")
                     .font(.headline)
-                Text("\(result.recordCount.formatted(.number)) documents in \(Duration.seconds(result.duration).formatted(.units(allowed: [.minutes, .seconds], width: .abbreviated, fractionalPart: .show(length: 1))))")
+                Text(completionSummary(for: result))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                Label {
+                    Text("Saved to \(result.outputFolderName)")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } icon: {
+                    Image(systemName: "folder.fill")
+                        .foregroundStyle(Color.mergeformOrange)
+                }
+                .font(.callout.weight(.medium))
+                Button {
+                    revealOutput(of: result)
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(.top, 2)
                 Button {
                     emailMergeResult(result)
                 } label: {
@@ -281,7 +304,6 @@ struct PreviewConfigView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .disabled(result.attachmentURL == nil)
-                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Metrics.tight)
@@ -387,6 +409,28 @@ struct PreviewConfigView: View {
 
     private var emailDraft: EmailDraft {
         EmailDraft(recipient: emailRecipient, subject: emailSubject, body: emailBody)
+    }
+
+    /// "12 documents in 3.4s", or "12 records in one PDF in 3.4s" for a combined merge.
+    private func completionSummary(for result: MergeResult) -> LocalizedStringKey {
+        let duration = Duration.seconds(result.duration)
+            .formatted(.units(allowed: [.minutes, .seconds], width: .abbreviated, fractionalPart: .show(length: 1)))
+        if result.savedFileNames.count == 1, result.recordCount > 1 {
+            return "^[\(result.recordCount) record](inflect: true) in one PDF in \(duration)"
+        }
+        return "^[\(result.recordCount) document](inflect: true) in \(duration)"
+    }
+
+    private func revealOutput(of result: MergeResult) {
+        do {
+            try SecurityScopedAccess.revealInFinder(
+                folderBookmark: result.outputFolderBookmark,
+                selecting: result.savedFileNames
+            )
+        } catch {
+            revealErrorMessage = "The folder the PDFs were saved in can't be found. It may have been moved, renamed, or deleted."
+            showingRevealError = true
+        }
     }
 
     private func emailMergeResult(_ result: MergeResult) {
