@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import FlexStore
+import KickstartExchange
 import StoreKit
 
 struct ContentView: View {
@@ -213,6 +214,12 @@ struct ContentView: View {
                         ForEach(visibleCategories.enumerated(), id: \.element.id) { index, category in
                             categorySection(for: category)
                                 .revealOnAppear(order: index + 3)
+                        }
+                        // Free users see one cross-promotion banner below their jobs; Pro
+                        // customers, including lifetime buyers, never see adverts.
+                        if !hasProAccess {
+                            ExchangeBannerAdView(apiKey: "ks_live_oiOXxPHxxpQT2eV42Z-LAVU4oTCahb_AUiLTpQ7vcuU")
+                                .frame(maxWidth: .infinity)
                         }
                     }
                     .padding(Metrics.page)

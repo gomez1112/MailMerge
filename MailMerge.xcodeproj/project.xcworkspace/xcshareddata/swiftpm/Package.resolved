@@ -11,6 +11,15 @@
       }
     },
     {
+      "identity" : "kickstartsdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/twostraws/KickstartSDK",
+      "state" : {
+        "revision" : "f368c7e79695ec6370c96e5656896d972d581621",
+        "version" : "0.6.0"
+      }
+    },
+    {
       "identity" : "onboardingkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gomez1112/OnboardingKit",

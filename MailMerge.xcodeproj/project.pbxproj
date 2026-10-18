@@ -10,6 +10,7 @@
 		CC1692462F5CDC5E00495695 /* Mergeform.storekit in Resources */ = {isa = PBXBuildFile; fileRef = CC1692452F5CDC5E00495695 /* Mergeform.storekit */; };
 		CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2DC2F42956B0027CF92 /* FlexStore */; };
 		CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2E22F42959C0027CF92 /* OnboardingKit */; };
+		CC9E51A32F9B3C0000A1B201 /* KickstartExchange in Frameworks */ = {isa = PBXBuildFile; productRef = CC9E51A22F9B3C0000A1B201 /* KickstartExchange */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 			files = (
 				CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */,
 				CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */,
+				CC9E51A32F9B3C0000A1B201 /* KickstartExchange in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,6 +137,7 @@
 			packageProductDependencies = (
 				CC6CE2DC2F42956B0027CF92 /* FlexStore */,
 				CC6CE2E22F42959C0027CF92 /* OnboardingKit */,
+				CC9E51A22F9B3C0000A1B201 /* KickstartExchange */,
 			);
 			productName = MailMerge;
 			productReference = CC87A4E52F34A5FE00EBE819 /* Mergeform.app */;
@@ -171,6 +174,7 @@
 			packageReferences = (
 				CC6CE2DB2F42956B0027CF92 /* XCRemoteSwiftPackageReference "FlexStore" */,
 				CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */,
+				CC9E51A12F9B3C0000A1B201 /* XCRemoteSwiftPackageReference "KickstartSDK" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CC87A4E62F34A5FE00EBE819 /* Products */;
@@ -405,7 +409,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
@@ -435,7 +439,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.transfinite.MailMerge;
 				PRODUCT_NAME = Mergeform;
 				REGISTER_APP_GROUPS = YES;
@@ -464,7 +468,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
@@ -494,7 +498,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.transfinite.MailMerge;
 				PRODUCT_NAME = Mergeform;
 				REGISTER_APP_GROUPS = YES;
@@ -560,6 +564,14 @@
 				kind = branch;
 			};
 		};
+		CC9E51A12F9B3C0000A1B201 /* XCRemoteSwiftPackageReference "KickstartSDK" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/twostraws/KickstartSDK";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -572,6 +584,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */;
 			productName = OnboardingKit;
+		};
+		CC9E51A22F9B3C0000A1B201 /* KickstartExchange */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC9E51A12F9B3C0000A1B201 /* XCRemoteSwiftPackageReference "KickstartSDK" */;
+			productName = KickstartExchange;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
