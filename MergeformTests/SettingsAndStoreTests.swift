@@ -6,11 +6,32 @@ import Testing
 @MainActor
 @Suite("Pro access")
 struct ProAccessTests {
-    @Test("The lifetime purchase unlocks Pro without a subscription")
-    func lifetimeUnlocksPro() {
-        #expect(MailMergeTier.hasProAccess(subscriptionTier: .free, purchasedProductIDs: [MailMergeProductIDs.lifetimePurchase]))
-        #expect(MailMergeTier.hasProAccess(subscriptionTier: .pro, purchasedProductIDs: []))
-        #expect(MailMergeTier.hasProAccess(subscriptionTier: .free, purchasedProductIDs: []) == false)
+    @Test("The lifetime purchase or a subscription unlocks Pro")
+    func entitlementsUnlockPro() {
+        #expect(ProAccess.granted(by: [EntitlementRecord(productID: MailMergeProductIDs.lifetimePurchase)]) == .pro(.lifetime))
+        #expect(ProAccess.granted(by: [EntitlementRecord(productID: MailMergeProductIDs.monthlySubscription, expirationDate: .now.addingTimeInterval(3600))]) == .pro(.subscription))
+        #expect(ProAccess.granted(by: [EntitlementRecord(productID: MailMergeProductIDs.annualSubscription)]) == .pro(.subscription))
+        // Owning both shows as lifetime, which doesn't lapse.
+        #expect(ProAccess.granted(by: [
+            EntitlementRecord(productID: MailMergeProductIDs.annualSubscription),
+            EntitlementRecord(productID: MailMergeProductIDs.lifetimePurchase),
+        ]) == .pro(.lifetime))
+        #expect(ProAccess.granted(by: []) == .free)
+    }
+
+    @Test("Refunded, expired, and unknown purchases don't unlock Pro")
+    func inactiveEntitlementsDontUnlockPro() {
+        #expect(ProAccess.granted(by: [EntitlementRecord(productID: MailMergeProductIDs.lifetimePurchase, isRevoked: true)]) == .free)
+        #expect(ProAccess.granted(by: [EntitlementRecord(productID: MailMergeProductIDs.monthlySubscription, expirationDate: .now.addingTimeInterval(-60))]) == .free)
+        #expect(ProAccess.granted(by: [EntitlementRecord(productID: "com.mergeform.unknown")]) == .free)
+    }
+
+    @Test("The free plan allows a number of jobs in total, and nothing is decided before purchases are checked")
+    func jobAllowance() {
+        #expect(JobAllowance.canCreateJob(access: .free, createdJobCount: JobAllowance.freeJobLimit - 1))
+        #expect(JobAllowance.canCreateJob(access: .free, createdJobCount: JobAllowance.freeJobLimit) == false)
+        #expect(JobAllowance.canCreateJob(access: .pro(.subscription), createdJobCount: 50))
+        #expect(JobAllowance.canCreateJob(access: .unknown, createdJobCount: 0) == false)
     }
 
     @Test("The paywall offers what Pro actually unlocks")

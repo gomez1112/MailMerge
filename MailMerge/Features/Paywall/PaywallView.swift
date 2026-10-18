@@ -1,4 +1,3 @@
-import FlexStore
 import StoreKit
 import SwiftUI
 
@@ -7,8 +6,12 @@ import SwiftUI
 /// The upgrade sheet presenting the Pro subscriptions and the lifetime purchase.
 /// Present it modally using `.sheet(isPresented:) { PaywallView() }`.
 struct PaywallView: View {
-    @Environment(StoreKitService<MailMergeTier>.self) private var store
+    @Environment(PurchaseStore.self) private var purchases
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @State private var isBuyingLifetime = false
+    @State private var purchaseErrorMessage = ""
+    @State private var showingPurchaseError = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,21 +21,39 @@ struct PaywallView: View {
             .storeButton(.visible, for: .restorePurchases)
             .subscriptionStorePolicyDestination(url: MergeformLinks.termsOfUse, for: .termsOfService)
             .subscriptionStorePolicyDestination(url: MergeformLinks.privacyPolicy, for: .privacyPolicy)
-            .onInAppPurchaseCompletion { _, result in
-                // Close only when a purchase goes through. Cancelling, a pending (Ask to
-                // Buy) purchase, or an error leaves the paywall open.
-                if case .success(.success) = result {
-                    dismiss()
-                }
-            }
+            // No onInAppPurchaseCompletion: StoreKit's default sends successful purchases
+            // to Transaction.updates, where PurchaseStore unlocks Pro and finishes them,
+            // and shows an alert when a purchase fails. The paywall closes once Pro is on.
 
             lifetimeSection
 
             footer
         }
         .frame(minWidth: 520, minHeight: 680)
-        .onChange(of: store.hasProAccess) { _, hasPro in
+        .onChange(of: purchases.hasProAccess) { _, hasPro in
             if hasPro { dismiss() }
+        }
+        .task {
+            // Show the price, and retry a load that failed at launch.
+            _ = try? await purchases.loadLifetimeProduct()
+        }
+        .alert("Purchase Failed", isPresented: $showingPurchaseError) {
+            Button("OK") { }
+        } message: {
+            Text(purchaseErrorMessage)
+        }
+    }
+
+    private func buyLifetime() {
+        isBuyingLifetime = true
+        Task {
+            defer { isBuyingLifetime = false }
+            do {
+                _ = try await purchases.purchaseLifetime()
+            } catch {
+                purchaseErrorMessage = error.localizedDescription
+                showingPurchaseError = true
+            }
         }
     }
 
@@ -56,13 +77,18 @@ struct PaywallView: View {
 
                 Spacer()
 
-                NonConsumablePurchaseButton<MailMergeTier>(
-                    productID: MailMergeProductIDs.lifetimePurchase,
-                    title: "Buy",
-                    purchasedTitle: "Purchased"
-                )
+                Button(action: buyLifetime) {
+                    if purchases.ownsLifetime {
+                        Text("Purchased")
+                    } else if isBuyingLifetime {
+                        Text("Buying…")
+                    } else {
+                        Text(purchases.lifetimeProduct.map { "Buy for \($0.displayPrice)" } ?? "Buy")
+                    }
+                }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
+                .disabled(purchases.ownsLifetime || isBuyingLifetime)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
@@ -78,9 +104,11 @@ struct PaywallView: View {
 
             Spacer()
 
-            ManageSubscriptionsButton()
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Button("Manage Subscriptions") {
+                openURL(MergeformLinks.manageSubscriptions)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
 
             Button("Not Now") { dismiss() }
                 .keyboardShortcut(.cancelAction)

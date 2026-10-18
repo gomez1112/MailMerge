@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 import SwiftData
 import OnboardingKit
-import FlexStore
+import StoreKit
 import AppKit
 
 // MARK: - Focused Values
@@ -34,8 +34,8 @@ extension FocusedValues {
 struct MailMergeApp: App {
     @State private var loadError: Error?
     @State private var mergeRuns = MergeRunStore()
+    @State private var purchases = PurchaseStore()
     private let container: ModelContainer?
-    private let store = StoreKitService<MailMergeTier>()
 
     init() {
         let schema = Schema(versionedSchema: MailMergeSchemaV3.self)
@@ -94,12 +94,9 @@ struct MailMergeApp: App {
                         .modelContainer(container)
                         .environment(mergeRuns)
                         .environment(\.services, ServiceContainer.shared)
+                        .environment(purchases)
                         .frame(minWidth: 1200, idealWidth: 1400, maxWidth: 1800, minHeight: 740, idealHeight: 840)
-                        .attachStoreKit(
-                            manager: store,
-                            groupID: MailMergeProductIDs.subscriptionGroupID,
-                            ids: MailMergeProductIDs.all
-                        )
+                        .task { purchases.start() }
                 }
             } else {
                 ContentUnavailableView {
@@ -124,7 +121,8 @@ struct MailMergeApp: App {
 
         Settings {
             AppSettingsView()
-                .environment(store)
+                .environment(purchases)
+                .task { purchases.start() }
         }
     }
 
@@ -178,12 +176,16 @@ struct MailMergeCommands: Commands {
 // MARK: - App Settings View
 
 struct AppSettingsView: View {
-    @Environment(StoreKitService<MailMergeTier>.self) private var store
+    @Environment(PurchaseStore.self) private var purchases
+    @Environment(\.openURL) private var openURL
     @AppStorage("defaultOutputPattern") private var defaultOutputPattern = "Letter_{FirstName}_{LastName}"
     @AppStorage("showRelativeDates") private var showRelativeDates = true
     @AppStorage("autoMatchFields") private var autoMatchFields = true
     @AppStorage("confirmBeforeDelete") private var confirmBeforeDelete = true
     @State private var showingPaywall = false
+    @State private var isRestoring = false
+    @State private var restoreMessage = ""
+    @State private var showingRestoreMessage = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -231,21 +233,23 @@ struct AppSettingsView: View {
         .formStyle(.grouped)
     }
 
-    private var hasLifetimePurchase: Bool {
-        store.purchasedNonConsumables.contains(MailMergeProductIDs.lifetimePurchase)
-    }
-
     private var subscriptionTab: some View {
         Form {
             Section("Plan") {
                 LabeledContent("Status") {
                     HStack(spacing: 6) {
-                        if store.hasProAccess {
+                        switch purchases.access {
+                        case .unknown:
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Checking…")
+                                .foregroundStyle(.secondary)
+                        case .pro(let source):
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(Color.accentColor)
-                            Text(hasLifetimePurchase && store.subscriptionTier < .pro ? "Pro (Lifetime)" : "Pro")
+                            Text(source == .lifetime ? "Pro (Lifetime)" : "Pro")
                                 .foregroundStyle(.primary)
-                        } else {
+                        case .free:
                             Text("Free")
                                 .foregroundStyle(.secondary)
                             Button("Upgrade to Pro") {
@@ -256,24 +260,47 @@ struct AppSettingsView: View {
                         }
                     }
                 }
-                if store.subscriptionTier >= .pro {
-                    LabeledContent("Renewal", value: store.renewalStatusString)
+                if let renewal = purchases.renewal {
+                    LabeledContent("Renewal", value: renewal.description)
                 }
             }
             Section("Manage") {
-                ManageSubscriptionsButton()
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-                RestorePurchasesButton<MailMergeTier>()
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
+                Button("Manage Subscriptions") {
+                    openURL(MergeformLinks.manageSubscriptions)
+                }
+                Button(isRestoring ? "Restoring…" : "Restore Purchases", action: restorePurchases)
+                    .disabled(isRestoring)
             }
+            .buttonStyle(.bordered)
             Section("Legal") {
                 Link("Privacy Policy", destination: MergeformLinks.privacyPolicy)
                 Link("Terms of Use", destination: MergeformLinks.termsOfUse)
             }
         }
         .formStyle(.grouped)
+        .alert("Restore Purchases", isPresented: $showingRestoreMessage) {
+            Button("OK") { }
+        } message: {
+            Text(restoreMessage)
+        }
+    }
+
+    private func restorePurchases() {
+        isRestoring = true
+        Task {
+            defer { isRestoring = false }
+            do {
+                try await purchases.restorePurchases()
+                restoreMessage = purchases.hasProAccess
+                    ? "Your purchases have been restored."
+                    : "No purchases were found for this Apple Account."
+            } catch StoreKitError.userCancelled {
+                return
+            } catch {
+                restoreMessage = error.localizedDescription
+            }
+            showingRestoreMessage = true
+        }
     }
 
     private var aboutTab: some View {

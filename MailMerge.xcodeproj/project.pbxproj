@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		CC1692462F5CDC5E00495695 /* Mergeform.storekit in Resources */ = {isa = PBXBuildFile; fileRef = CC1692452F5CDC5E00495695 /* Mergeform.storekit */; };
-		CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2DC2F42956B0027CF92 /* FlexStore */; };
 		CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2E22F42959C0027CF92 /* OnboardingKit */; };
 		CC9E51A32F9B3C0000A1B201 /* KickstartExchange in Frameworks */ = {isa = PBXBuildFile; productRef = CC9E51A22F9B3C0000A1B201 /* KickstartExchange */; };
 		CC9E51A62F9B3C0000A1B201 /* KickstartSignal in Frameworks */ = {isa = PBXBuildFile; productRef = CC9E51A52F9B3C0000A1B201 /* KickstartSignal */; };
@@ -57,7 +56,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */,
-				CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */,
 				CC9E51A32F9B3C0000A1B201 /* KickstartExchange in Frameworks */,
 				CC9E51A62F9B3C0000A1B201 /* KickstartSignal in Frameworks */,
 			);
@@ -137,7 +135,6 @@
 			);
 			name = MailMerge;
 			packageProductDependencies = (
-				CC6CE2DC2F42956B0027CF92 /* FlexStore */,
 				CC6CE2E22F42959C0027CF92 /* OnboardingKit */,
 				CC9E51A22F9B3C0000A1B201 /* KickstartExchange */,
 				CC9E51A52F9B3C0000A1B201 /* KickstartSignal */,
@@ -175,7 +172,6 @@
 			mainGroup = CC87A4DC2F34A5FE00EBE819;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				CC6CE2DB2F42956B0027CF92 /* XCRemoteSwiftPackageReference "FlexStore" */,
 				CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */,
 				CC9E51A12F9B3C0000A1B201 /* XCRemoteSwiftPackageReference "KickstartSDK" */,
 			);
@@ -551,14 +547,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		CC6CE2DB2F42956B0027CF92 /* XCRemoteSwiftPackageReference "FlexStore" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gomez1112/FlexStore";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/gomez1112/OnboardingKit";
@@ -578,11 +566,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		CC6CE2DC2F42956B0027CF92 /* FlexStore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CC6CE2DB2F42956B0027CF92 /* XCRemoteSwiftPackageReference "FlexStore" */;
-			productName = FlexStore;
-		};
 		CC6CE2E22F42959C0027CF92 /* OnboardingKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */;

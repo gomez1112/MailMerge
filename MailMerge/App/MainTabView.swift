@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
-import FlexStore
 import KickstartSignal
 import AppKit
 import StoreKit
@@ -120,7 +119,7 @@ private enum SidebarDestination: Hashable {
 
 private struct TemplateLibraryView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(StoreKitService<MailMergeTier>.self) private var store
+    @Environment(PurchaseStore.self) private var purchases
     @Query(sort: \MailMergeJob.modifiedAt, order: .reverse) private var jobs: [MailMergeJob]
     @Query(sort: [SortDescriptor(\Category.sortOrder), SortDescriptor(\Category.name)]) private var categories: [Category]
 
@@ -131,10 +130,7 @@ private struct TemplateLibraryView: View {
     @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
-    @State private var entitlementHasPro = false
-    @State private var entitlementObserverTask: Task<Void, Never>?
 
-    @AppStorage("jobCreationCount") private var jobCreationCount = 0
 
 
     init(onOpenJobs: @escaping (UUID) -> Void) {
@@ -202,12 +198,6 @@ private struct TemplateLibraryView: View {
         } message: {
             Text(JobAllowance.limitReachedMessage)
         }
-        .onAppear(perform: refreshEntitlementFallback)
-        .onAppear(perform: startEntitlementObserver)
-        .onChange(of: store.subscriptionTier) { _, _ in
-            refreshEntitlementFallback()
-        }
-        .onDisappear(perform: stopEntitlementObserver)
     }
 
     private var templateGrid: some View {
@@ -305,65 +295,19 @@ private struct TemplateLibraryView: View {
         categories.first(where: { $0.isLocked }) ?? categories.first(where: { $0.name == "Uncategorized" })
     }
 
-    private var hasProAccess: Bool {
-        store.hasProAccess || entitlementHasPro
-    }
-
-    private var canCreateJob: Bool {
-        hasProAccess || jobCreationCount < JobAllowance.freeJobLimit
+    /// Whether another job can be created; Pro has no limit. Waits for purchases to be
+    /// checked, so a Pro user isn't held to the free limit just after launch.
+    private func canCreateJobNow() async -> Bool {
+        await purchases.canCreateJob()
     }
 
     private func recordJobCreation() {
-        if !hasProAccess {
-            jobCreationCount += 1
-        }
+        purchases.recordJobCreation()
     }
 
     private func showLimitAlertAndPaywall() {
         showingPaywallAfterAlert = true
         showingLimitAlert = true
-    }
-
-    private func refreshEntitlementFallback() {
-        Task {
-            entitlementHasPro = await hasCurrentProEntitlement()
-        }
-    }
-
-    private func startEntitlementObserver() {
-        guard entitlementObserverTask == nil else { return }
-        entitlementObserverTask = Task {
-            for await result in Transaction.updates {
-                guard case .verified(let transaction) = result else { continue }
-                if MailMergeTier(productID: transaction.productID) == .pro {
-                    await transaction.finish()
-                }
-                refreshEntitlementFallback()
-            }
-        }
-    }
-
-    private func stopEntitlementObserver() {
-        entitlementObserverTask?.cancel()
-        entitlementObserverTask = nil
-    }
-
-    private func hasCurrentProEntitlement() async -> Bool {
-        var hasPro = false
-        for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result else { continue }
-            if MailMergeTier(productID: transaction.productID) == .pro {
-                hasPro = true
-                await transaction.finish()
-            }
-        }
-        return hasPro
-    }
-
-    private func canCreateJobNow() async -> Bool {
-        if canCreateJob { return true }
-        entitlementHasPro = await hasCurrentProEntitlement()
-        return canCreateJob
     }
 }
 

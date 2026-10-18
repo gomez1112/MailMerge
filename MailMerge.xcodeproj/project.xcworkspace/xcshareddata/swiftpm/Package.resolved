@@ -2,15 +2,6 @@
   "originHash" : "24d74f3a360392ddad6c0950119110908c4bc6658478cdc337d0622631d382d6",
   "pins" : [
     {
-      "identity" : "flexstore",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gomez1112/FlexStore",
-      "state" : {
-        "branch" : "main",
-        "revision" : "32964a5c9225b9292f2717811465d5d299f0b5c3"
-      }
-    },
-    {
       "identity" : "kickstartsdk",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/twostraws/KickstartSDK",

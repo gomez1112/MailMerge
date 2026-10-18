@@ -1,12 +1,11 @@
 import SwiftUI
 import SwiftData
-import FlexStore
 import KickstartExchange
 import StoreKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(StoreKitService<MailMergeTier>.self) private var store
+    @Environment(PurchaseStore.self) private var purchases
     @Environment(MergeRunStore.self) private var mergeRuns
 
     init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false)) {
@@ -41,11 +40,8 @@ struct ContentView: View {
     @State private var showingPaywall = false
     @State private var showingLimitAlert = false
     @State private var showingPaywallAfterAlert = false
-    @State private var entitlementHasPro = false
-    @State private var entitlementObserverTask: Task<Void, Never>?
     @State private var jobCommandRouter = JobCommandRouter()
 
-    @AppStorage("jobCreationCount") private var jobCreationCount = 0
     @AppStorage("confirmBeforeDelete") private var confirmBeforeDelete = true
     @State private var jobPendingDeletion: MailMergeJob?
 
@@ -143,16 +139,10 @@ struct ContentView: View {
             Text("“\(job.name)” will be permanently deleted. Your template, spreadsheet, and generated PDFs won’t be affected.")
         }
         .onAppear(perform: ensureDefaultCategoriesIfNeeded)
-        .onAppear(perform: refreshEntitlementFallback)
-        .onAppear(perform: startEntitlementObserver)
         .onAppear(perform: applyInitialNavigation)
         .onChange(of: navigationPath) { _, newPath in
             persistNavigationPath(newPath)
         }
-        .onChange(of: store.subscriptionTier) { _, _ in
-            refreshEntitlementFallback()
-        }
-        .onDisappear(perform: stopEntitlementObserver)
         .onChange(of: newJobRequested, initial: true) { _, isRequested in
             guard isRequested else { return }
             newJobRequested = false
@@ -217,7 +207,7 @@ struct ContentView: View {
                         }
                         // Free users see one cross-promotion banner below their jobs; Pro
                         // customers, including lifetime buyers, never see adverts.
-                        if !hasProAccess {
+                        if purchases.showsFreePlanContent {
                             ExchangeBannerAdView(apiKey: "ks_live_oiOXxPHxxpQT2eV42Z-LAVU4oTCahb_AUiLTpQ7vcuU")
                                 .frame(maxWidth: .infinity)
                         }
@@ -374,65 +364,19 @@ struct ContentView: View {
         categories.first(where: { $0.isLocked }) ?? categories.first(where: { $0.name == "Uncategorized" })
     }
 
-    private var hasProAccess: Bool {
-        store.hasProAccess || entitlementHasPro
-    }
-
-    private var canCreateJob: Bool {
-        hasProAccess || jobCreationCount < JobAllowance.freeJobLimit
+    /// Whether another job can be created; Pro has no limit. Waits for purchases to be
+    /// checked, so a Pro user isn't held to the free limit just after launch.
+    private func canCreateJobNow() async -> Bool {
+        await purchases.canCreateJob()
     }
 
     private func recordJobCreation() {
-        if !hasProAccess {
-            jobCreationCount += 1
-        }
+        purchases.recordJobCreation()
     }
 
     private func showLimitAlertAndPaywall() {
         showingPaywallAfterAlert = true
         showingLimitAlert = true
-    }
-
-    private func refreshEntitlementFallback() {
-        Task {
-            entitlementHasPro = await hasCurrentProEntitlement()
-        }
-    }
-
-    private func startEntitlementObserver() {
-        guard entitlementObserverTask == nil else { return }
-        entitlementObserverTask = Task {
-            for await result in Transaction.updates {
-                guard case .verified(let transaction) = result else { continue }
-                if MailMergeTier(productID: transaction.productID) == .pro {
-                    await transaction.finish()
-                }
-                refreshEntitlementFallback()
-            }
-        }
-    }
-
-    private func stopEntitlementObserver() {
-        entitlementObserverTask?.cancel()
-        entitlementObserverTask = nil
-    }
-
-    private func hasCurrentProEntitlement() async -> Bool {
-        var hasPro = false
-        for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result else { continue }
-            if MailMergeTier(productID: transaction.productID) == .pro {
-                hasPro = true
-                await transaction.finish()
-            }
-        }
-        return hasPro
-    }
-
-    private func canCreateJobNow() async -> Bool {
-        if canCreateJob { return true }
-        entitlementHasPro = await hasCurrentProEntitlement()
-        return canCreateJob
     }
 
     /// Returns a badge count for a job: shows last run record count for completed jobs,
