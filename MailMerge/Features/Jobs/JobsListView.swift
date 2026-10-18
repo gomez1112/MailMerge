@@ -39,6 +39,7 @@ struct ContentView: View {
     @State private var selectedJobID: UUID?
     @State private var entitlementHasPro = false
     @State private var entitlementObserverTask: Task<Void, Never>?
+    @State private var jobCommandRouter = JobCommandRouter()
 
     @AppStorage("jobCreationCount") private var jobCreationCount = 0
 
@@ -158,20 +159,18 @@ struct ContentView: View {
             }
         .onDisappear(perform: stopEntitlementObserver)
         .onReceive(NotificationCenter.default.publisher(for: .createNewJob)) { _ in createJob() }
-        .focusedSceneValue(\.deleteJobAction, focusedDeleteAction)
-        .focusedSceneValue(\.renameJobAction, focusedRenameAction)
+        .focusedSceneValue(\.jobCommands, focusedJobCommands)
+        .onChange(of: jobCommandRouter.pendingCommand) { _, command in
+            guard let command else { return }
+            jobCommandRouter.pendingCommand = nil
+            perform(command)
+        }
     }
 
-    private var focusedDeleteAction: (() -> Void)? {
-        guard let id = focusedJobID,
-              let job = jobs.first(where: { $0.id == id }) else { return nil }
-        return { deleteJob(job) }
-    }
-
-    private var focusedRenameAction: (() -> Void)? {
-        guard let id = focusedJobID,
-              let job = jobs.first(where: { $0.id == id }) else { return nil }
-        return { beginRename(job) }
+    /// Targets the open job, or the selected one, for the Job menu.
+    private var focusedJobCommands: FocusedJobCommands? {
+        guard let id = focusedJobID, jobs.contains(where: { $0.id == id }) else { return nil }
+        return FocusedJobCommands(jobID: id, router: jobCommandRouter)
     }
 
     private var focusedJobID: UUID? {
@@ -303,6 +302,16 @@ struct ContentView: View {
             modelContext.delete(job)
             navigationPath.removeAll(where: { $0 == job.id })
             if selectedJobID == job.id { selectedJobID = nil }
+        }
+    }
+
+    private func perform(_ command: JobCommand) {
+        guard let job = jobs.first(where: { $0.id == command.jobID }) else { return }
+        switch command.kind {
+        case .rename:
+            beginRename(job)
+        case .delete:
+            deleteJob(job)
         }
     }
 

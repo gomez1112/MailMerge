@@ -13,8 +13,7 @@ extension Notification.Name {
 // MARK: - Focused Values
 
 extension FocusedValues {
-    @Entry var deleteJobAction: (() -> Void)? = nil
-    @Entry var renameJobAction: (() -> Void)? = nil
+    @Entry var jobCommands: FocusedJobCommands? = nil
 }
 
 // MARK: - App Entry Point
@@ -118,24 +117,23 @@ struct MailMergeApp: App {
 // MARK: - Commands
 
 struct MailMergeCommands: Commands {
-    @FocusedValue(\.deleteJobAction) private var deleteJobAction: (() -> Void)?
-    @FocusedValue(\.renameJobAction) private var renameJobAction: (() -> Void)?
+    @FocusedValue(\.jobCommands) private var jobCommands: FocusedJobCommands?
 
     var body: some Commands {
         CommandMenu("Job") {
             Button("Rename Job") {
-                renameJobAction?()
+                jobCommands?.rename()
             }
             .keyboardShortcut("r", modifiers: .command)
-            .disabled(renameJobAction == nil)
+            .disabled(jobCommands == nil)
 
             Divider()
 
             Button("Delete Job") {
-                deleteJobAction?()
+                jobCommands?.delete()
             }
             .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(deleteJobAction == nil)
+            .disabled(jobCommands == nil)
         }
     }
 }
