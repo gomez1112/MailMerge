@@ -132,8 +132,8 @@ struct DataSourceConfigView: View {
         ) { result in
             handleFileImport(result)
         }
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            handleDrop(providers)
+        .dropDestination(for: URL.self) { urls, _ in
+            handleDrop(urls)
         }
     }
 
@@ -189,39 +189,20 @@ struct DataSourceConfigView: View {
         }
     }
 
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
-            return false
+    private func handleDrop(_ urls: [URL]) {
+        guard let url = urls.first else { return }
+        do {
+            try storeSpreadsheetURL(url)
+        } catch {
+            onError(error, nil)
         }
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
-            if let error {
-                Task { @MainActor in
-                    onError(error, nil)
-                }
-                return
-            }
-            guard let data = item as? Data,
-                  let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
-            Task { @MainActor in
-                do {
-                    try storeSpreadsheetURL(url)
-                } catch {
-                    onError(error, nil)
-                }
-            }
-        }
-        return true
     }
 
     private func storeSpreadsheetURL(_ url: URL) throws {
         guard isValidXlsxURL(url) else {
             throw MergeError.invalidSpreadsheet
         }
-        guard url.startAccessingSecurityScopedResource() else {
-            throw MergeError.securityScopeUnavailable
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-        let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        let bookmarkData = try SecurityScopedAccess.makeBookmark(for: url)
         job.dataSourceBookmarkData = bookmarkData
         job.dataSourceFileName = url.lastPathComponent
         job.availableSheets = []

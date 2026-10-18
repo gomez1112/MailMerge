@@ -77,6 +77,23 @@ final class MailMergeJob {
             && outputFolderBookmarkData != nil
     }
 
+    /// Re-creates bookmarks to files that moved or were renamed since they were picked,
+    /// and updates the names shown for them.
+    func refreshStaleBookmarks() {
+        if let data = templateBookmarkData, let refreshed = SecurityScopedAccess.refreshedBookmark(for: data) {
+            templateBookmarkData = refreshed.bookmark
+            templateFileName = refreshed.url.lastPathComponent
+        }
+        if let data = dataSourceBookmarkData, let refreshed = SecurityScopedAccess.refreshedBookmark(for: data) {
+            dataSourceBookmarkData = refreshed.bookmark
+            dataSourceFileName = refreshed.url.lastPathComponent
+        }
+        if let data = outputFolderBookmarkData, let refreshed = SecurityScopedAccess.refreshedBookmark(for: data) {
+            outputFolderBookmarkData = refreshed.bookmark
+            outputFolderName = refreshed.url.lastPathComponent
+        }
+    }
+
     var configurationProgress: Double {
         let total: Double = 5
         var score: Double = 0

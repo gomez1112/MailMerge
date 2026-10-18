@@ -329,15 +329,7 @@ private struct TemplateLibraryView: View {
             showLimitAlertAndPaywall()
             return nil
         }
-        guard url.startAccessingSecurityScopedResource() else {
-            throw MergeError.securityScopeUnavailable
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-        let bookmarkData = try url.bookmarkData(
-            options: .withSecurityScope,
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+        let bookmarkData = try SecurityScopedAccess.makeBookmark(for: url)
         let category = uncategorizedCategory
         let job = MailMergeJob(name: "New Mergeform", category: category)
         job.templateBookmarkData = bookmarkData

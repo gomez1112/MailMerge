@@ -308,6 +308,7 @@ struct JobDetailView: View {
     }
 
     private func captureSnapshotIfNeeded() {
+        job.refreshStaleBookmarks()
         guard initialSnapshot == nil else { return }
         initialSnapshot = JobSnapshot(job: job)
     }

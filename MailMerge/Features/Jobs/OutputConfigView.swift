@@ -118,6 +118,10 @@ struct OutputConfigView: View {
         ) { result in
             handleFolderImport(result)
         }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return }
+            storeOutputFolder(url)
+        }
         .alert("Output Folder Error", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -137,26 +141,27 @@ struct OutputConfigView: View {
         do {
             let urls = try result.get()
             guard let url = urls.first else { return }
-            guard url.startAccessingSecurityScopedResource() else {
-                clearOutputFolder()
-                presentOutputError(MergeError.outputAccessDenied.localizedDescription)
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
-            let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-            job.outputFolderBookmarkData = bookmarkData
-            job.outputFolderName = url.lastPathComponent
-            job.modifiedAt = Date()
+            storeOutputFolder(url)
         } catch {
-            clearOutputFolder()
             presentOutputError(error.localizedDescription)
         }
     }
 
-    private func clearOutputFolder() {
-        job.outputFolderBookmarkData = nil
-        job.outputFolderName = nil
+    /// Saves a picked or dropped folder. A failure keeps the previously chosen folder.
+    private func storeOutputFolder(_ url: URL) {
+        guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else {
+            presentOutputError("Choose a folder for the merged PDFs.")
+            return
+        }
+        do {
+            job.outputFolderBookmarkData = try SecurityScopedAccess.makeBookmark(for: url)
+            job.outputFolderName = url.lastPathComponent
+            job.modifiedAt = Date()
+        } catch {
+            presentOutputError(error.localizedDescription)
+        }
     }
+
 
     private func presentOutputError(_ message: String) {
         errorMessage = message

@@ -370,6 +370,7 @@ final class MergeEngine {
     }
 
     func generatePreview(job: MailMergeJob, recordIndex: Int) async throws -> (data: Data, totalRecords: Int) {
+        job.refreshStaleBookmarks()
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
         }
@@ -421,6 +422,7 @@ final class MergeEngine {
             ProcessInfo.processInfo.endActivity(activity)
         }
         
+        job.refreshStaleBookmarks()
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
         }
@@ -852,15 +854,22 @@ extension EnvironmentValues {
 }
 
 enum SecurityScopedAccess {
+    /// Resolves a bookmark and starts accessing its file.
+    ///
+    /// A bookmark to a file that was moved or renamed still resolves to the file's new
+    /// location; `MailMergeJob.refreshStaleBookmarks()` saves the new location. Only a
+    /// file that can't be found at all is an error.
     nonisolated static func startAccessing(bookmarkData: Data) throws -> URL {
         var isStale = false
-        let url = try URL(
-            resolvingBookmarkData: bookmarkData,
-            options: .withSecurityScope,
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        )
-        if isStale {
+        let url: URL
+        do {
+            url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+        } catch {
             throw MergeError.staleBookmark
         }
         guard url.startAccessingSecurityScopedResource() else {
@@ -869,7 +878,37 @@ enum SecurityScopedAccess {
         return url
     }
 
+    /// A new bookmark and the current URL when `bookmarkData` points at a file that was
+    /// moved or renamed; nil when the bookmark is current or the file can't be found.
+    nonisolated static func refreshedBookmark(for bookmarkData: Data) -> (bookmark: Data, url: URL)? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ), isStale else {
+            return nil
+        }
+        guard let bookmark = try? makeBookmark(for: url) else { return nil }
+        return (bookmark, url)
+    }
+
     nonisolated static func stopAccessing(_ url: URL) {
         url.stopAccessingSecurityScopedResource()
+    }
+
+    /// Creates a security-scoped bookmark for a file the user picked or dropped, so the
+    /// app can open it again after relaunching.
+    ///
+    /// URLs from an open panel carry a security scope that must be started first. URLs
+    /// from a drag don't: the drag itself grants access, and starting a scope on them
+    /// returns false. Neither case is an error.
+    nonisolated static func makeBookmark(for url: URL) throws -> Data {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing { url.stopAccessingSecurityScopedResource() }
+        }
+        return try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 }
