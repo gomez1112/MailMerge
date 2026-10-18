@@ -89,7 +89,7 @@ Press **⌘R** or click the Run button.
 | UI | SwiftUI |
 | Persistence | SwiftData |
 | Payments | StoreKit 2 (FlexStore) |
-| Excel parsing | CoreXLSX |
+| Excel parsing | Built-in streaming reader (`XLSXPackageReader`) over ZIPFoundation |
 | PDF rendering | PDFKit / UIGraphicsPDFRenderer |
 | ZIP output | ZIPFoundation |
 | Onboarding | OnboardingKit |
@@ -145,7 +145,7 @@ Schema versioning is handled via a SwiftData migration plan across three version
 All services are accessed through a `ServiceContainer` singleton injected into the SwiftUI environment.
 
 - **`DOCXParserService`** (actor) — extracts placeholders and header images from DOCX files using ZIPFoundation and NSAttributedString.
-- **`ExcelParserService`** (actor) — reads sheet names, column headers, and row data from XLSX files via CoreXLSX.
+- **`ExcelParserService`** (actor) — reads sheet names, column headers, and row data from XLSX files with `XLSXPackageReader`, formatting values as Excel displays them with `ExcelValueFormatter`.
 - **`PDFGeneratorService`** — renders attributed strings to PDF pages using PDFKit (macOS) or `UIGraphicsPDFRenderer` (iOS).
 - **`MergeEngine`** — orchestrates the full merge workflow: template analysis, data loading, field substitution, transformation, and output file writing.
 

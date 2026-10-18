@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		CC1692462F5CDC5E00495695 /* Mergeform.storekit in Resources */ = {isa = PBXBuildFile; fileRef = CC1692452F5CDC5E00495695 /* Mergeform.storekit */; };
 		CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2DC2F42956B0027CF92 /* FlexStore */; };
-		CC6CE2E02F42958A0027CF92 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2DF2F42958A0027CF92 /* CoreXLSX */; };
+		CC6CE2E02F42958A0027CF92 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2DF2F42958A0027CF92 /* ZIPFoundation */; };
 		CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC6CE2E22F42959C0027CF92 /* OnboardingKit */; };
 /* End PBXBuildFile section */
 
@@ -56,7 +56,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CC6CE2E32F42959C0027CF92 /* OnboardingKit in Frameworks */,
-				CC6CE2E02F42958A0027CF92 /* CoreXLSX in Frameworks */,
+				CC6CE2E02F42958A0027CF92 /* ZIPFoundation in Frameworks */,
 				CC6CE2DD2F42956B0027CF92 /* FlexStore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -136,7 +136,7 @@
 			name = MailMerge;
 			packageProductDependencies = (
 				CC6CE2DC2F42956B0027CF92 /* FlexStore */,
-				CC6CE2DF2F42958A0027CF92 /* CoreXLSX */,
+				CC6CE2DF2F42958A0027CF92 /* ZIPFoundation */,
 				CC6CE2E22F42959C0027CF92 /* OnboardingKit */,
 			);
 			productName = MailMerge;
@@ -173,7 +173,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CC6CE2DB2F42956B0027CF92 /* XCRemoteSwiftPackageReference "FlexStore" */,
-				CC6CE2DE2F42958A0027CF92 /* XCRemoteSwiftPackageReference "CoreXLSX" */,
+				CC6CE2DE2F42958A0027CF92 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -554,12 +554,12 @@
 				kind = branch;
 			};
 		};
-		CC6CE2DE2F42958A0027CF92 /* XCRemoteSwiftPackageReference "CoreXLSX" */ = {
+		CC6CE2DE2F42958A0027CF92 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/CoreOffice/CoreXLSX";
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.14.2;
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.9.20;
 			};
 		};
 		CC6CE2E12F42959C0027CF92 /* XCRemoteSwiftPackageReference "OnboardingKit" */ = {
@@ -578,10 +578,10 @@
 			package = CC6CE2DB2F42956B0027CF92 /* XCRemoteSwiftPackageReference "FlexStore" */;
 			productName = FlexStore;
 		};
-		CC6CE2DF2F42958A0027CF92 /* CoreXLSX */ = {
+		CC6CE2DF2F42958A0027CF92 /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = CC6CE2DE2F42958A0027CF92 /* XCRemoteSwiftPackageReference "CoreXLSX" */;
-			productName = CoreXLSX;
+			package = CC6CE2DE2F42958A0027CF92 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
 		};
 		CC6CE2E22F42959C0027CF92 /* OnboardingKit */ = {
 			isa = XCSwiftPackageProductDependency;
