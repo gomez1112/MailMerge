@@ -1,15 +1,25 @@
-We redesigned major parts of the app with a new visual system, so everything looks consistent and feels faster to use.
+Mergeform 1.2 brings a fresh new look, a faster way to find your finished PDFs, and dozens of fixes that make every merge more accurate.
 
-What’s new:
-- App navigation updated for smoother, quicker access to every section
-- Jobs overview redesigned to help you spot what matters at a glance
-- Template library refreshed for easier browsing, selection, and starting new jobs
-- Category sheets updated so you can find the right templates in fewer taps
-- Job setup workspace rebuilt to make the full process clearer from start to finish
+New
+• A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting
+• After a merge, see which folder your PDFs were saved in and open it in Finder with the new files selected
+• Cancel a merge at any time, and keep its progress while you move between steps
+• Drag and drop templates, spreadsheets, and output folders onto each step
+• Format fields as dates, numbers, or currency, with a live example
+• PDFs use your template’s paper size, margins, and header logo as they appear in Word
+• Mergeform asks before deleting a job (you can turn this off in Settings)
 
-We also refreshed the configuration experience:
-- New configuration screens with cleaner layout and more intuitive controls
-- Improved preview and run flow so you can test your setup with less back-and-forth
-- Shared components updated for more consistent behavior across the app
+Improved
+• Much better compatibility with real-world Excel workbooks: dates, percentages, ZIP codes with leading zeros, formulas, rich text, and TRUE/FALSE now come through exactly as Excel shows them
+• Smarter field matching that won’t mix up similar names like “Date” and “State”
+• Jobs keep working when you move or rename their template, spreadsheet, or output folder
+• Records that would get the same file name are numbered instead of overwriting each other
+• The relative dates, auto-match, and default file name settings now take effect
+• Lifetime Pro purchases are recognized everywhere in the app
 
-Finally, we updated paywall styling to match the new design system, keeping the upgrade experience visually aligned with the rest of the product.
+Fixed
+• Adding, renaming, and deleting categories in Manage Categories
+• Job menu commands acting on the wrong job, and Command-Delete deleting a job while you type
+• Changing a job’s template now updates its fields
+• Cancelling a subscription purchase no longer closes the upgrade screen
+• Many smaller fixes throughout the app

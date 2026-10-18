@@ -48,31 +48,39 @@ extension OnboardingPage {
 // MARK: - What's New Feature Items
 
 extension FeatureItem {
+    /// The highlights of the current version, shown once to people who update.
+    /// Update these with each release.
     static var mailMergeFeatures: [FeatureItem] {
         [
             FeatureItem(
-                title: "Template Library",
-                description: "Browse and reuse all your DOCX templates from one place. Import a new template or start a job directly from the library.",
-                systemImage: "richtext.page.fill",
+                title: "A Fresh New Look",
+                description: "A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting.",
+                systemImage: "sparkles",
                 iconColor: .mergeformBlue
             ),
             FeatureItem(
-                title: "Smart Field Matching",
-                description: "Fields are automatically paired with spreadsheet columns using intelligent fuzzy matching, saving you time on every job.",
-                systemImage: "wand.and.sparkles",
-                iconColor: .purple
-            ),
-            FeatureItem(
-                title: "Field Transformations",
-                description: "Apply formatting rules per field — uppercase, title case, date format, currency, and more — right inside the mapping step.",
-                systemImage: "arrow.left.arrow.right",
-                iconColor: .purple
-            ),
-            FeatureItem(
-                title: "Flexible Output Patterns",
-                description: "Name your output files dynamically using column values like {FirstName}_{LastName}.pdf. Preview the result before merging.",
-                systemImage: "folder.badge.gearshape",
+                title: "Find Your PDFs Instantly",
+                description: "After a merge, see which folder your PDFs were saved in and open it in Finder with the new files selected.",
+                systemImage: "folder.fill",
                 iconColor: .mergeformOrange
+            ),
+            FeatureItem(
+                title: "Spreadsheets Exactly as in Excel",
+                description: "Dates, percentages, ZIP codes with leading zeros, formulas, and rich text now come through just as Excel shows them.",
+                systemImage: "tablecells.fill",
+                iconColor: .green
+            ),
+            FeatureItem(
+                title: "Drag and Drop",
+                description: "Drop a template, spreadsheet, or output folder right onto its step. Jobs keep working when you move or rename their files.",
+                systemImage: "tray.and.arrow.down.fill",
+                iconColor: .mergeformBlue
+            ),
+            FeatureItem(
+                title: "Stay in Control of Merges",
+                description: "Cancel a merge at any time. Its progress stays put while you move between steps.",
+                systemImage: "stop.circle.fill",
+                iconColor: .purple
             ),
         ]
     }
