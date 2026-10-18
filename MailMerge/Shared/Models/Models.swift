@@ -183,13 +183,15 @@ enum JobStatus: String, Codable, CaseIterable {
         }
     }
 
+    /// The symbol for the status. Badges, job rows, and the job summary all use it, so
+    /// a status looks the same everywhere.
     var systemImageName: String {
         switch self {
         case .draft: return "pencil"
-        case .configured: return "checkmark.seal"
-        case .running: return "hourglass"
-        case .completed: return "checkmark.circle"
-        case .failed: return "exclamationmark.triangle"
+        case .configured: return "checkmark.seal.fill"
+        case .running: return "arrow.trianglehead.2.clockwise.rotate.90"
+        case .completed: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
         }
     }
 }
@@ -389,11 +391,11 @@ enum MergeStep: Int, CaseIterable, Identifiable {
 
     var systemImageName: String {
         switch self {
-        case .template: return "doc.richtext"
+        case .template: return "richtext.page"
         case .dataSource: return "tablecells"
         case .fieldMapping: return "arrow.left.arrow.right"
         case .output: return "folder"
-        case .preview: return "doc.richtext"
+        case .preview: return "richtext.page"
         }
     }
 }

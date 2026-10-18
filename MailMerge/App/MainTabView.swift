@@ -39,7 +39,7 @@ struct MainTabView: View {
                 Label("Jobs", systemImage: "tray.full")
                     .badge(jobs.count)
                     .tag(SidebarDestination.jobs)
-                Label("Templates", systemImage: "doc.richtext")
+                Label("Templates", systemImage: "richtext.page")
                     .tag(SidebarDestination.templates)
             }
         }
@@ -81,7 +81,7 @@ struct MainTabView: View {
 private struct SidebarBrandHeader: View {
     var body: some View {
         HStack(spacing: Metrics.compact) {
-            IconTile(systemImage: "point.3.connected.trianglepath.dotted", size: 34, isProminent: true)
+            AppIconImage(size: 34)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Mergeform")
                     .font(.headline)
@@ -229,7 +229,7 @@ private struct TemplateLibraryView: View {
 
     private var templateEmptyState: some View {
         ContentUnavailableView {
-            Label("No Templates Yet", systemImage: "doc.richtext")
+            Label("No Templates Yet", systemImage: "richtext.page")
         } description: {
             Text("Import a DOCX template, or use one in a job, to see it here.")
         } actions: {

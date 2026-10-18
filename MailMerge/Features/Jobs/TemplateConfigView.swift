@@ -26,17 +26,17 @@ struct TemplateConfigView: View {
             SectionHeader(
                 title: "Template",
                 subtitle: "Choose a Word document (.docx) with merge placeholders.",
-                systemImageName: "doc.richtext"
+                systemImageName: "richtext.page"
             )
 
             ConfigCard {
                 VStack(alignment: .leading, spacing: Metrics.regular) {
-                    CardLabel(title: "Document Template", systemImage: "doc.richtext")
+                    CardLabel(title: "Document Template", systemImage: "richtext.page")
                     if let fileName = job.templateFileName {
                         SelectedFileRow(
                             fileName: fileName,
                             subtitle: "Word template",
-                            systemImageName: "doc.richtext",
+                            systemImageName: "richtext.page",
                             color: .mergeformBlue
                         ) {
                             showingImporter = true
@@ -46,7 +46,7 @@ struct TemplateConfigView: View {
                         DropTargetView(
                             title: "Drop your Word template here",
                             subtitle: "or click to choose a .docx file",
-                            systemImageName: "doc.badge.plus"
+                            systemImageName: "document.badge.plus"
                         ) {
                             showingImporter = true
                         }
@@ -60,12 +60,12 @@ struct TemplateConfigView: View {
             ConfigCard {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        CardLabel(title: "Merge Fields", systemImage: "wand.and.stars")
+                        CardLabel(title: "Merge Fields", systemImage: "wand.and.sparkles")
                         Spacer()
                         Button {
                             scanTemplate()
                         } label: {
-                            Label(isScanning ? "Scanning…" : "Scan Template", systemImage: "wand.and.stars")
+                            Label(isScanning ? "Scanning…" : "Scan Template", systemImage: "wand.and.sparkles")
                                 .symbolEffect(.breathe, isActive: isScanning)
                         }
                         .disabled(job.templateBookmarkData == nil || isScanning)

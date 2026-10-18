@@ -247,17 +247,17 @@ struct ContentView: View {
             )
             .revealOnAppear(order: 0)
             StatCard(
-                systemImageName: "checkmark.seal.fill",
+                systemImageName: JobStatus.configured.systemImageName,
                 value: jobs.filter(\.isConfigured).count.formatted(.number),
                 label: "Ready to Run",
-                iconColor: .green
+                iconColor: JobStatus.configured.tint
             )
             .revealOnAppear(order: 1)
             StatCard(
-                systemImageName: "doc.badge.gearshape.fill",
+                systemImageName: JobStatus.completed.systemImageName,
                 value: jobs.filter { $0.status == .completed }.count.formatted(.number),
                 label: "Completed",
-                iconColor: .mergeformOrange
+                iconColor: JobStatus.completed.tint
             )
             .revealOnAppear(order: 2)
         }
@@ -537,16 +537,6 @@ private struct JobRowView: View {
     @AppStorage("showRelativeDates") private var showRelativeDates = true
     @State private var isHovering = false
 
-    private var symbol: String {
-        switch job.status {
-        case .draft: return "doc.text"
-        case .configured: return "doc.text.fill"
-        case .running: return "arrow.triangle.2.circlepath"
-        case .completed: return "checkmark.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        }
-    }
-
     private var tint: Color {
         job.status == .draft ? .mergeformBlue : job.status.tint
     }
@@ -558,7 +548,7 @@ private struct JobRowView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            IconTile(systemImage: symbol, tint: tint, size: 40)
+            IconTile(systemImage: job.status.systemImageName, tint: tint, size: 40)
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.rotate, isActive: job.status == .running)
 

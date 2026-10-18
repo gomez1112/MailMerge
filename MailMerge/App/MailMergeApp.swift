@@ -72,7 +72,7 @@ struct MailMergeApp: App {
                     currentVersion: appVersion,
                     pages: OnboardingPage.mailMergePages,
                     features: FeatureItem.mailMergeFeatures,
-                    tint: .accentColor
+                    tint: .mergeformBlue
                 ) {
                     MainTabView()
                         .modelContainer(container)
@@ -177,7 +177,7 @@ struct AppSettingsView: View {
             generalTab
                 .tabItem { Label("General", systemImage: "gear") }
             mergeTab
-                .tabItem { Label("Merge", systemImage: "doc.on.doc") }
+                .tabItem { Label("Merge", systemImage: "document.on.document") }
             subscriptionTab
                 .tabItem { Label("Subscription", systemImage: "star.circle") }
             aboutTab
@@ -263,7 +263,16 @@ struct AppSettingsView: View {
     private var aboutTab: some View {
         Form {
             Section {
-                LabeledContent("Version", value: appVersion)
+                HStack(spacing: 12) {
+                    AppIconImage(size: 48)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mergeform")
+                            .font(.headline)
+                        Text("Version \(appVersion)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
             }
             Section {
                 LabeledContent("Developer", value: "Gerard Gomez")

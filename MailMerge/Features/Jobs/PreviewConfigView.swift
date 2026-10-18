@@ -97,7 +97,7 @@ struct PreviewConfigView: View {
         ConfigCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    CardLabel(title: "Sample Document", systemImage: "doc.richtext")
+                    CardLabel(title: "Sample Document", systemImage: "richtext.page")
                     Spacer()
                     if hasPreview {
                         Button {
@@ -119,7 +119,7 @@ struct PreviewConfigView: View {
                             .transition(.opacity)
                     } else {
                         VStack(spacing: Metrics.regular) {
-                            Image(systemName: "doc.text.magnifyingglass")
+                            Image(systemName: "text.page.badge.magnifyingglass")
                                 .font(.system(size: 44, weight: .light))
                                 .foregroundStyle(Color.mergeformBlue.gradient)
                                 .symbolEffect(.breathe, isActive: isGenerating)

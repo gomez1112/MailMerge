@@ -4,19 +4,18 @@ import SwiftUI
 
 // MARK: - Brand Colors
 
-// Colors that change between light and dark mode live in Assets.xcassets, and Xcode
-// generates their `Color` symbols:
-// - `mergeformBlue`: primary action blue, brightened in dark mode to stay legible.
+// The app's colors live in Assets.xcassets, and Xcode generates their `Color` symbols:
+// - `mergeformBlue`: the blue from the app icon, for primary content and progress.
+//   AccentColor uses the same values.
+// - `mergeformOrange`: the orange from the app icon, for output, attention, and
+//   in-progress states.
+//   Both brand colors are slightly brighter in dark mode, and deeper with Increase
+//   Contrast so text set in them stays readable.
 // - `mergeformBackground`: page tint behind work surfaces.
 // - `mergeformPanel`: card fill.
 // - `mergeformStroke`: hairline border for cards and controls.
 // - `mergeformSurface`: translucent raised fill, white in light mode and a faint tint
 //   in dark mode. Apply `.opacity(_:)` to set its strength.
-
-extension Color {
-    /// Warm accent used for attention, automation, and in-progress states.
-    static let mergeformOrange = Color(red: 0.93, green: 0.48, blue: 0.18)
-}
 
 // MARK: - Section Header
 

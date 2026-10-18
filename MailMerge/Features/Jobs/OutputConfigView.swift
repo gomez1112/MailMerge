@@ -79,7 +79,7 @@ struct OutputConfigView: View {
                     .opacity(job.combineIntoSinglePDF ? 0.5 : 1)
 
                     HStack(spacing: Metrics.tight) {
-                        Image(systemName: "doc.text.magnifyingglass")
+                        Image(systemName: "text.page.badge.magnifyingglass")
                             .foregroundStyle(Color.mergeformBlue)
                         Text("Example:")
                             .foregroundStyle(.secondary)

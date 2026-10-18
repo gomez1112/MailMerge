@@ -43,12 +43,7 @@ struct PaywallView: View {
             Divider()
 
             HStack(spacing: 12) {
-                Image(systemName: "infinity.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.mergeformOrange, in: .rect(cornerRadius: 10))
-                    .accessibilityHidden(true)
+                IconTile(systemImage: "infinity", tint: .mergeformOrange, size: 44, isProminent: true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Lifetime Access")
@@ -104,12 +99,8 @@ private struct ProOfferHeader: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
-                Image(systemName: "doc.badge.gearshape.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.white)
-                    .frame(width: 64, height: 64)
-                    .background(Color.mergeformBlue, in: .rect(cornerRadius: 16))
-                    .accessibilityHidden(true)
+                AppIconImage(size: 72)
+                    .padding(.bottom, 4)
                 Text(MergeformProOffer.headline)
                     .font(.title)
                     .bold()
@@ -122,11 +113,7 @@ private struct ProOfferHeader: View {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(MergeformProOffer.features) { feature in
                     HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: feature.systemImage)
-                            .font(.title3)
-                            .foregroundStyle(Color.mergeformBlue)
-                            .frame(width: 28)
-                            .accessibilityHidden(true)
+                        IconTile(systemImage: feature.systemImage, size: 32)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(feature.title)
                                 .font(.headline)

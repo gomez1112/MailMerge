@@ -45,7 +45,7 @@ struct FieldMappingConfigView: View {
                     CardLabel(title: "Fields", systemImage: "arrow.left.arrow.right")
 
                     if job.fieldMappings.isEmpty {
-                        Label("No fields yet. Choose and scan a template in the Template step.", systemImage: "wand.and.stars")
+                        Label("No fields yet. Choose and scan a template in the Template step.", systemImage: "wand.and.sparkles")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 6)

@@ -75,10 +75,10 @@ struct FieldMappingTests {
 struct JobStatusTests {
     @Test("Labels and icons are stable", arguments: [
         (JobStatus.draft, "Draft", "pencil"),
-        (.configured, "Configured", "checkmark.seal"),
-        (.running, "Running", "hourglass"),
-        (.completed, "Completed", "checkmark.circle"),
-        (.failed, "Failed", "exclamationmark.triangle")
+        (.configured, "Configured", "checkmark.seal.fill"),
+        (.running, "Running", "arrow.trianglehead.2.clockwise.rotate.90"),
+        (.completed, "Completed", "checkmark.circle.fill"),
+        (.failed, "Failed", "exclamationmark.triangle.fill")
     ])
     func statusLabelAndIcon(_ status: JobStatus, expectedLabel: String, expectedIcon: String) {
         #expect(status.label == expectedLabel)
@@ -90,11 +90,11 @@ struct JobStatusTests {
 @Suite("Merge steps")
 struct MergeStepTests {
     @Test("Titles and icons are stable", arguments: [
-        (MergeStep.template, "Template", "doc.richtext"),
+        (MergeStep.template, "Template", "richtext.page"),
         (.dataSource, "Data Source", "tablecells"),
         (.fieldMapping, "Field Mapping", "arrow.left.arrow.right"),
         (.output, "Output", "folder"),
-        (.preview, "Preview", "doc.richtext")
+        (.preview, "Preview", "richtext.page")
     ])
     func stepLabelAndIcon(_ step: MergeStep, expectedTitle: String, expectedIcon: String) {
         #expect(step.title == expectedTitle)
