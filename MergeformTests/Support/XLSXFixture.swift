@@ -1,5 +1,5 @@
 import Foundation
-import ZIPFoundation
+@testable import Mergeform
 
 /// Builds a minimal .xlsx package in a fresh temporary directory so tests can exercise
 /// the spreadsheet reader against real-world file shapes.
@@ -31,7 +31,7 @@ struct XLSXFixture {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "fixture.xlsx")
-        let archive = try Archive(url: url, accessMode: .create)
+        let archive = try ZIPArchiveWriter(url: url)
 
         let plainItems = sharedStrings.map { "<si><t xml:space=\"preserve\">\(Self.escaped($0))</t></si>" }.joined()
         var parts: [String: String] = [
@@ -59,12 +59,11 @@ struct XLSXFixture {
         }
         parts.merge(extraParts) { _, new in new }
 
+        // Excel deflates its parts, so the fixtures do too.
         for (path, contents) in parts.sorted(by: { $0.key < $1.key }) {
-            let data = Data(contents.utf8)
-            try archive.addEntry(with: path, type: .file, uncompressedSize: Int64(data.count)) { position, size in
-                data.subdata(in: Int(position)..<Int(position) + size)
-            }
+            try archive.addEntry(path: path, contents: Data(contents.utf8), method: .deflated)
         }
+        try archive.finish()
         return url
     }
 

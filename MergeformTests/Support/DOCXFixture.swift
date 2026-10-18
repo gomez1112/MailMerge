@@ -1,6 +1,6 @@
 import AppKit
 import Foundation
-import ZIPFoundation
+@testable import Mergeform
 
 /// Builds a minimal .docx package in a fresh temporary directory.
 struct DOCXFixture {
@@ -29,7 +29,7 @@ struct DOCXFixture {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "template.docx")
-        let archive = try Archive(url: url, accessMode: .create)
+        let archive = try ZIPArchiveWriter(url: url)
 
         let namespaces = #"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships""#
         let body = paragraphs
@@ -73,11 +73,11 @@ struct DOCXFixture {
             parts["word/media/image1.png"] = Self.pngData(size: headerPicture.pixelSize)
         }
 
+        // Word deflates its parts, so the fixtures do too.
         for (path, data) in parts.sorted(by: { $0.key < $1.key }) {
-            try archive.addEntry(with: path, type: .file, uncompressedSize: Int64(data.count)) { position, size in
-                data.subdata(in: Int(position)..<Int(position) + size)
-            }
+            try archive.addEntry(path: path, contents: data, method: .deflated)
         }
+        try archive.finish()
         return url
     }
 

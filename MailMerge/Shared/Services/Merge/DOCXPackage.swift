@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import ZIPFoundation
 
 /// Reads page setup and the header picture from a .docx package. The system's DOCX
 /// importer only provides the body text, so these come straight from the package XML.
@@ -10,12 +9,12 @@ nonisolated struct DOCXPackage {
         var margins: EdgeInsets?
     }
 
-    private let archive: Archive
+    private let archive: ZIPArchive
     private let documentPath: String
 
     init(url: URL) throws {
         do {
-            archive = try Archive(url: url, accessMode: .read)
+            archive = try ZIPArchive(url: url)
         } catch {
             throw MergeError.invalidTemplate
         }
@@ -112,7 +111,7 @@ nonisolated struct DOCXPackage {
         var target: String
     }
 
-    private static func relationships(in archive: Archive, forPartAt partPath: String) -> [Relationship] {
+    private static func relationships(in archive: ZIPArchive, forPartAt partPath: String) -> [Relationship] {
         let directory = (partPath as NSString).deletingLastPathComponent
         let fileName = (partPath as NSString).lastPathComponent
         let path = directory.isEmpty ? "_rels/\(fileName).rels" : "\(directory)/_rels/\(fileName).rels"
@@ -128,21 +127,17 @@ nonisolated struct DOCXPackage {
         }
     }
 
-    private static func data(in archive: Archive, path: String) -> Data? {
-        let entry = archive[path] ?? archive.first { $0.path.caseInsensitiveCompare(path) == .orderedSame }
-        guard let entry else { return nil }
-        var data = Data()
+    /// The contents of the part at `path`, matched ignoring case. A part that can't be
+    /// read is treated like a missing one.
+    private static func data(in archive: ZIPArchive, path: String) -> Data? {
         do {
-            _ = try archive.extract(entry, skipCRC32: true) { chunk in
-                data.append(chunk)
-            }
+            return try archive.data(at: path)
         } catch {
             return nil
         }
-        return data
     }
 
-    private static func string(in archive: Archive, path: String) -> String? {
+    private static func string(in archive: ZIPArchive, path: String) -> String? {
         data(in: archive, path: path).flatMap { String(data: $0, encoding: .utf8) }
     }
 

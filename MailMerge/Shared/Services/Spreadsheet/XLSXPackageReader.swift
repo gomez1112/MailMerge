@@ -1,5 +1,4 @@
 import Foundation
-import ZIPFoundation
 
 /// Reads worksheets from an .xlsx package with a streaming XML parser.
 ///
@@ -19,13 +18,13 @@ nonisolated struct XLSXPackageReader {
     /// Whether serial dates count from 1904 (older Mac workbooks) instead of 1900.
     let usesDate1904: Bool
 
-    private let archive: Archive
+    private let archive: ZIPArchive
     private let sharedStringsPath: String?
     private let stylesPath: String?
 
     init(url: URL) throws {
         do {
-            archive = try Archive(url: url, accessMode: .read)
+            archive = try ZIPArchive(url: url)
         } catch {
             throw MergeError.invalidSpreadsheet
         }
@@ -94,7 +93,7 @@ nonisolated struct XLSXPackageReader {
 
     /// Reads the relationships of the part at `partPath` (or of the package when empty),
     /// with targets resolved to package paths.
-    private static func relationships(in archive: Archive, forPartAt partPath: String) throws -> [Relationship] {
+    private static func relationships(in archive: ZIPArchive, forPartAt partPath: String) throws -> [Relationship] {
         let directory = (partPath as NSString).deletingLastPathComponent
         let fileName = (partPath as NSString).lastPathComponent
         let relationshipsPath = directory.isEmpty
@@ -130,21 +129,17 @@ nonisolated struct XLSXPackageReader {
         return components.joined(separator: "/")
     }
 
-    private static func entryData(in archive: Archive, path: String) -> Data? {
-        let entry = archive[path] ?? archive.first { $0.path.caseInsensitiveCompare(path) == .orderedSame }
-        guard let entry else { return nil }
-        var data = Data()
+    /// The contents of the part at `path`, matched ignoring case. A part that can't be
+    /// read is treated like a missing one.
+    private static func entryData(in archive: ZIPArchive, path: String) -> Data? {
         do {
-            _ = try archive.extract(entry, skipCRC32: true) { chunk in
-                data.append(chunk)
-            }
+            return try archive.data(at: path)
         } catch {
             return nil
         }
-        return data
     }
 
-    private static func parse(_ archive: Archive, path: String, with delegate: some XMLParserDelegate) throws {
+    private static func parse(_ archive: ZIPArchive, path: String, with delegate: some XMLParserDelegate) throws {
         guard let data = entryData(in: archive, path: path) else {
             throw MergeError.invalidSpreadsheet
         }

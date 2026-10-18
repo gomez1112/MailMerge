@@ -1,5 +1,4 @@
 import Foundation
-import ZIPFoundation
 import PDFKit
 import SwiftData
 import SwiftUI
@@ -710,13 +709,11 @@ final class MergeEngine {
         if FileManager.default.fileExists(atPath: zipURL.path) {
             try? FileManager.default.removeItem(at: zipURL)
         }
-        let archive = try Archive(url: zipURL, accessMode: .create)
+        let archive = try ZIPArchiveWriter(url: zipURL)
         for file in files {
-            try archive.addEntry(
-                with: file.lastPathComponent,
-                relativeTo: file.deletingLastPathComponent()
-            )
+            try archive.addEntry(path: file.lastPathComponent, contents: try Data(contentsOf: file))
         }
+        try archive.finish()
         return zipURL
     }
 }
