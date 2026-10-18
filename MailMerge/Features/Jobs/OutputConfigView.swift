@@ -7,108 +7,122 @@ struct OutputConfigView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
 
+    /// `{Row}` plus a token per column, without duplicates (a column may be named "Row").
     private var availableTokens: [String] {
-        ["{Row}"] + job.availableColumns.map { "{\($0)}" }
+        var seen: Set<String> = []
+        return (["{Row}"] + job.availableColumns.map { "{\($0)}" }).filter { seen.insert($0).inserted }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Metrics.section) {
             SectionHeader(
                 title: "Output",
-                subtitle: "Choose where the generated PDFs will be saved.",
-                systemImageName: "folder"
+                subtitle: "Choose where the PDFs are saved and how they’re named.",
+                systemImageName: "folder",
+                iconColor: .mergeformOrange
             )
 
-            // Output folder card
             ConfigCard {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: Metrics.regular) {
                     CardLabel(title: "Output Folder", systemImage: "folder")
                     if let folderName = job.outputFolderName {
                         SelectedFileRow(
                             fileName: folderName,
-                            subtitle: "Output folder",
-                            systemImageName: "folder",
-                            color: .orange
+                            subtitle: "PDFs are saved here",
+                            systemImageName: "folder.fill",
+                            color: .mergeformOrange
                         ) {
                             showingFolderPicker = true
                         }
+                        .transition(.scale(scale: 0.97).combined(with: .opacity))
                     } else {
                         DropTargetView(
-                            title: "Drop an output folder",
-                            subtitle: "or click to browse",
-                            systemImageName: "folder"
+                            title: "Drop a folder here",
+                            subtitle: "or click to choose where PDFs are saved",
+                            systemImageName: "folder.badge.plus"
                         ) {
                             showingFolderPicker = true
                         }
+                        .transition(.opacity)
                     }
                 }
+                .motion(Motion.standard, value: job.outputFolderName)
             }
+            .revealOnAppear(order: 0)
 
-            // File naming card
             ConfigCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    CardLabel(title: "File Naming", systemImage: "textformat")
+                    CardLabel(title: "File Names", systemImage: "textformat")
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Pattern")
+                    TextField("Pattern", text: $job.outputFileNamePattern, prompt: Text("Letter_{FirstName}_{LastName}"))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body.monospaced())
+                        .disabled(job.combineIntoSinglePDF)
+
+                    VStack(alignment: .leading, spacing: Metrics.tight) {
+                        Text("Click a token to add it to the pattern")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("Pattern", text: $job.outputFileNamePattern)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 13, design: .monospaced))
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Available tokens")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        FlowLayout(spacing: 6) {
-                            ForEach(availableTokens.enumerated(), id: \.offset) { _, token in
-                                PlaceholderTag(text: token)
+                        FlowLayout(spacing: Metrics.tight) {
+                            ForEach(availableTokens, id: \.self) { token in
+                                Button {
+                                    job.outputFileNamePattern += token
+                                } label: {
+                                    PlaceholderTag(text: token)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Add \(token) to the pattern")
                             }
                         }
                     }
+                    .disabled(job.combineIntoSinglePDF)
+                    .opacity(job.combineIntoSinglePDF ? 0.5 : 1)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: Metrics.tight) {
                         Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        Text("Preview: ")
-                            .font(.caption)
+                            .foregroundStyle(Color.mergeformBlue)
+                        Text("Example:")
                             .foregroundStyle(.secondary)
                         Text(previewFileName)
-                            .font(.caption.monospaced())
+                            .monospaced()
                             .bold()
-                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .contentTransition(.opacity)
                     }
-                    .padding(.top, 2)
+                    .font(.callout)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.mergeformBlue.opacity(0.06), in: .rect(cornerRadius: Metrics.tileRadius))
 
                     if job.combineIntoSinglePDF {
                         Text("The pattern names individual files. A combined PDF is named after the job.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .transition(.opacity)
                     }
                 }
+                .motion(Motion.standard, value: previewFileName)
+                .motion(Motion.standard, value: job.combineIntoSinglePDF)
             }
+            .revealOnAppear(order: 1)
 
-            // Options card
             ConfigCard {
                 VStack(alignment: .leading, spacing: 12) {
                     CardLabel(title: "Options", systemImage: "slider.horizontal.3")
-
                     Toggle(isOn: $job.combineIntoSinglePDF) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Combine into single PDF")
-                                .font(.callout)
-                            Text("Merges all records into one PDF document instead of individual files.")
+                            Text("Combine into a single PDF")
+                            Text("Put every record in one document instead of a file per record.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .toggleStyle(.switch)
                 }
             }
-
-            Spacer()
+            .revealOnAppear(order: 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fileImporter(

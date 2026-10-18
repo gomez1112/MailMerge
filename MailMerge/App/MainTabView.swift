@@ -6,6 +6,8 @@ import AppKit
 import StoreKit
 
 struct MainTabView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query private var jobs: [MailMergeJob]
     @State private var selection: SidebarDestination = .jobs
     @State private var pendingJobID: UUID?
     @State private var windowCommands = WindowCommandRouter()
@@ -14,12 +16,14 @@ struct MainTabView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
-                .navigationSplitViewColumnWidth(min: 210, ideal: 250, max: 300)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
         } detail: {
             detailContent
-                .animation(.smooth(duration: 0.25), value: selection)
+                .id(selection)
+                .transition(.opacity)
         }
         .navigationSplitViewStyle(.balanced)
+        .symbolEffectsRemoved(reduceMotion)
         .focusedSceneValue(\.windowCommands, FocusedWindowCommands(router: windowCommands))
         .onChange(of: windowCommands.isNewJobRequested) { _, isRequested in
             // New jobs are created from the Jobs list, so show it.
@@ -30,33 +34,30 @@ struct MainTabView: View {
     // MARK: - Sidebar
 
     private var sidebarContent: some View {
-        VStack(spacing: 0) {
-            SidebarBrandHeader()
-                .padding()
-
-            VStack(spacing: 6) {
-                sidebarRow(
-                    destination: .jobs,
-                    title: "Jobs",
-                    systemImage: "rectangle.stack.fill"
-                )
-                sidebarRow(
-                    destination: .templates,
-                    title: "Templates",
-                    systemImage: "doc.richtext.fill"
-                )
+        List(selection: sidebarSelection) {
+            Section("Library") {
+                Label("Jobs", systemImage: "tray.full")
+                    .badge(jobs.count)
+                    .tag(SidebarDestination.jobs)
+                Label("Templates", systemImage: "doc.richtext")
+                    .tag(SidebarDestination.templates)
             }
-            .padding(.horizontal, 10)
-
-            Spacer()
-
-            SidebarVersionFooter()
-                .padding()
         }
         .listStyle(.sidebar)
-        .background(Color.mergeformInk.ignoresSafeArea())
-        // The ink sidebar is dark in both appearances, so its system colors should be too.
-        .environment(\.colorScheme, .dark)
+        .safeAreaInset(edge: .top) {
+            SidebarBrandHeader()
+        }
+    }
+
+    private var sidebarSelection: Binding<SidebarDestination?> {
+        Binding {
+            selection
+        } set: { newValue in
+            guard let newValue else { return }
+            withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
+                selection = newValue
+            }
+        }
     }
 
     @ViewBuilder
@@ -67,52 +68,11 @@ struct MainTabView: View {
         case .templates:
             TemplateLibraryView { jobID in
                 pendingJobID = jobID
-                selection = .jobs
-            }
-        }
-    }
-
-    private func sidebarRow(
-        destination: SidebarDestination,
-        title: String,
-        systemImage: String
-    ) -> some View {
-        let isSelected = selection == destination
-        return Button {
-            withAnimation(.smooth(duration: 0.2)) {
-                selection = destination
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.body)
-                    .foregroundStyle(isSelected ? .white : .white.opacity(0.55))
-                    .frame(width: 28, height: 28)
-                Text(title)
-                    .font(.callout)
-                    .bold(isSelected)
-                    .foregroundStyle(isSelected ? .white : .white.opacity(0.62))
-                Spacer()
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected
-                          ? Color.white.opacity(0.12)
-                          : Color.clear)
-            )
-            .overlay(alignment: .leading) {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.mergeformOrange)
-                        .frame(width: 3)
-                        .padding(.vertical, 10)
+                withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
+                    selection = .jobs
                 }
             }
         }
-        .buttonStyle(.plain)
-        .animation(.smooth(duration: 0.18), value: isSelected)
     }
 }
 
@@ -120,39 +80,21 @@ struct MainTabView: View {
 
 private struct SidebarBrandHeader: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.title2)
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Color.mergeformBlue, in: .rect(cornerRadius: 10))
-
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: Metrics.compact) {
+            IconTile(systemImage: "point.3.connected.trianglepath.dotted", size: 34, isProminent: true)
+            VStack(alignment: .leading, spacing: 0) {
                 Text("Mergeform")
-                    .font(.title3)
-                    .bold()
-                    .foregroundStyle(.white)
+                    .font(.headline)
                 Text("Document automation")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(.secondary)
             }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - Sidebar Version Footer
-
-private struct SidebarVersionFooter: View {
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-    }
-
-    var body: some View {
-        Text("Mergeform \(appVersion)")
-            .font(.caption2)
-            .foregroundStyle(.white.opacity(0.32))
-            .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, Metrics.regular)
+        .padding(.top, Metrics.tight)
+        .padding(.bottom, Metrics.compact)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -198,58 +140,23 @@ private struct TemplateLibraryView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Templates")
-                        .font(.largeTitle)
-                        .bold()
-                        .foregroundStyle(.primary)
-                    Text("\(templateItems.count) template\(templateItems.count == 1 ? "" : "s")")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+        NavigationStack {
+            Group {
+                if templateItems.isEmpty {
+                    templateEmptyState
+                } else {
+                    templateGrid
                 }
-                Spacer()
-                Button {
-                    showingImporter = true
-                } label: {
-                    Label("Import Template", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.mergeformBlue)
-                .controlSize(.regular)
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
-
-            if templateItems.isEmpty {
-                templateEmptyState
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: [
-                        GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 18)
-                    ], spacing: 18) {
-                        ForEach(templateItems) { item in
-                            TemplateCard(
-                                item: item,
-                                onUse: {
-                                    Task { @MainActor in
-                                        if let jobID = await createJob(from: item) {
-                                            onOpenJobs(jobID)
-                                        }
-                                    }
-                                },
-                                revealTitle: "Reveal",
-                                onReveal: {
-                                    revealTemplate(item)
-                                }
-                            )
-                        }
+            .navigationTitle("Templates")
+            .navigationSubtitle(templateItems.count == 1 ? "1 template" : "\(templateItems.count) templates")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Import Template", systemImage: "square.and.arrow.down") {
+                        showingImporter = true
                     }
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 32)
+                    .help("Import a DOCX template")
                 }
-                .scrollIndicators(.hidden)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -292,16 +199,44 @@ private struct TemplateLibraryView: View {
         .onDisappear(perform: stopEntitlementObserver)
     }
 
+    private var templateGrid: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 230, maximum: 300), spacing: Metrics.section)],
+                spacing: Metrics.section
+            ) {
+                ForEach(templateItems.enumerated(), id: \.element.id) { index, item in
+                    TemplateCard(
+                        item: item,
+                        onUse: {
+                            Task { @MainActor in
+                                if let jobID = await createJob(from: item) {
+                                    onOpenJobs(jobID)
+                                }
+                            }
+                        },
+                        onReveal: {
+                            revealTemplate(item)
+                        }
+                    )
+                    .revealOnAppear(order: index)
+                }
+            }
+            .padding(Metrics.page)
+        }
+        .scrollIndicators(.hidden)
+    }
+
     private var templateEmptyState: some View {
         ContentUnavailableView {
             Label("No Templates Yet", systemImage: "doc.richtext")
         } description: {
-            Text("Import a DOCX template or use one in a job to see it here.")
+            Text("Import a DOCX template, or use one in a job, to see it here.")
         } actions: {
             Button("Import Template") { showingImporter = true }
+                .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.mergeformBackground)
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
@@ -426,74 +361,75 @@ private struct TemplateLibraryView: View {
 private struct TemplateCard: View {
     let item: TemplateLibraryItem
     let onUse: () -> Void
-    let revealTitle: String
     let onReveal: () -> Void
 
-    @State private var isHovering = false
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.mergeformSurface.opacity(0.68))
-                VStack(spacing: 10) {
-                    Image(systemName: "doc.richtext")
-                        .font(.largeTitle)
-                        .foregroundStyle(Color.mergeformBlue)
-                    Text("DOCX")
-                        .font(.caption2)
-                        .bold()
-                        .foregroundStyle(.secondary)
-                }
+                RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [Color.mergeformBlue.opacity(0.14), Color.mergeformBlue.opacity(0.04)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                DocumentThumbnail()
             }
-            .frame(height: 120)
-            .padding(.bottom, 14)
+            .frame(height: 136)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.fileName)
                     .font(.headline)
                     .lineLimit(2)
                     .foregroundStyle(.primary)
-                HStack(spacing: 4) {
-                    Text("Last used \(item.lastUsed, format: .dateTime.month().day().year())")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    if item.usageCount > 1 {
-                        Text("·")
-                            .foregroundStyle(.quaternary)
-                        Text("\(item.usageCount) jobs")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+                Text(usageDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.bottom, 14)
 
-            HStack(spacing: 8) {
-                Button("Use", systemImage: "plus") { onUse() }
+            HStack {
+                Button("Use Template", systemImage: "plus", action: onUse)
                     .buttonStyle(.borderedProminent)
-                    .tint(Color.mergeformBlue)
-                    .controlSize(.small)
-                Button(revealTitle, systemImage: "arrow.up.forward.app") { onReveal() }
-                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 Spacer()
+                Button("Show in Finder", systemImage: "folder", action: onReveal)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Show in Finder")
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.mergeformPanel)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    isHovering ? Color.mergeformBlue.opacity(0.38) : Color.mergeformStroke
-                )
-        )
-        .scaleEffect(isHovering ? 1.01 : 1.0)
-        .onHover { isHovering = $0 }
-        .animation(.spring(duration: 0.2), value: isHovering)
+        .cardSurface(padding: Metrics.regular)
+        .hoverLift()
+    }
+
+    private var usageDescription: String {
+        let lastUsed = item.lastUsed.formatted(date: .abbreviated, time: .omitted)
+        let jobs = item.usageCount == 1 ? "1 job" : "\(item.usageCount) jobs"
+        return "\(jobs) · Last used \(lastUsed)"
+    }
+}
+
+/// A miniature page, standing in for a template's first page.
+private struct DocumentThumbnail: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(.white)
+            .frame(width: 66, height: 86)
+            .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Capsule()
+                        .fill(Color.mergeformBlue.opacity(0.8))
+                        .frame(width: 30, height: 4)
+                        .padding(.bottom, 3)
+                    ForEach(0..<6, id: \.self) { line in
+                        Capsule()
+                            .fill(.black.opacity(0.12))
+                            .frame(width: line == 5 ? 24 : 46, height: 3)
+                    }
+                }
+                .padding(10)
+            }
+            .accessibilityHidden(true)
     }
 }
 

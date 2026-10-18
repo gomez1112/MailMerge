@@ -2,7 +2,8 @@ import SwiftUI
 
 struct FieldMappingConfigView: View {
     @Bindable var job: MailMergeJob
-    @State private var isAutoMatching = false
+    /// Counts Auto-Match runs so its symbol can bounce each time.
+    @State private var autoMatchRuns = 0
 
     private var mappedCount: Int {
         job.mappedFieldCount
@@ -14,52 +15,40 @@ struct FieldMappingConfigView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Metrics.section) {
             SectionHeader(
                 title: "Field Mapping",
-                subtitle: "Match template placeholders to spreadsheet columns.",
-                systemImageName: "arrow.left.arrow.right"
+                subtitle: "Match each placeholder in the template to a spreadsheet column.",
+                systemImageName: "arrow.left.arrow.right",
+                iconColor: .purple
             )
 
-            // Progress card
             ConfigCard {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        CardLabel(title: "Mapping Progress", systemImage: "chart.bar.fill")
+                        CardLabel(title: "Progress", systemImage: "chart.bar.fill")
                         Spacer()
-                        Button {
-                            autoMatch()
-                        } label: {
-                            if isAutoMatching {
-                                HStack(spacing: 6) {
-                                    ProgressView().controlSize(.mini)
-                                    Text("Matching…")
-                                }
-                            } else {
-                                Label("Auto-Match", systemImage: "sparkles")
-                            }
+                        Button(action: autoMatch) {
+                            Label("Auto-Match", systemImage: "sparkles")
+                                .symbolEffect(.bounce, value: autoMatchRuns)
                         }
-                        .font(.callout)
-                        .disabled(job.availableColumns.isEmpty || isAutoMatching)
+                        .disabled(job.availableColumns.isEmpty)
+                        .help("Match unmapped fields to columns with similar names")
                     }
                     MappingProgressView(mappedCount: mappedCount, totalCount: job.fieldMappings.count)
                 }
             }
+            .revealOnAppear(order: 0)
 
-            // Mappings table card
             ConfigCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    CardLabel(title: "Field Assignments", systemImage: "arrow.left.arrow.right")
+                VStack(alignment: .leading, spacing: Metrics.compact) {
+                    CardLabel(title: "Fields", systemImage: "arrow.left.arrow.right")
 
                     if job.fieldMappings.isEmpty {
-                        HStack(spacing: 8) {
-                            Image(systemName: "wand.and.stars")
-                                .foregroundStyle(.tertiary)
-                            Text("No placeholders detected yet. Scan the template in Step 1 to start mapping.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 8)
+                        Label("No fields yet. Choose and scan a template in the Template step.", systemImage: "wand.and.stars")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 6)
                     } else {
                         if job.availableColumns.isEmpty {
                             Label("Choose a sheet in Data Source to load its columns.", systemImage: "tablecells")
@@ -78,8 +67,7 @@ struct FieldMappingConfigView: View {
                     }
                 }
             }
-
-            Spacer()
+            .revealOnAppear(order: 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -99,18 +87,18 @@ struct FieldMappingConfigView: View {
             Text("Status")
                 .frame(width: 70, alignment: .center)
         }
-        .font(.caption2)
-        .bold()
+        .font(.caption2.weight(.semibold))
         .foregroundStyle(.tertiary)
         .textCase(.uppercase)
+        .tracking(0.5)
+        .padding(.horizontal, 8)
     }
 
     // MARK: - Auto-match
 
     private func autoMatch() {
-        isAutoMatching = true
+        autoMatchRuns += 1
         job.autoMatchUnmappedFields()
-        isAutoMatching = false
     }
 }
 
@@ -120,14 +108,27 @@ private struct MappingRow: View {
     @Bindable var mapping: FieldMapping
     let availableColumns: [String]
 
+    @State private var isHovering = false
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
             fieldRow
             if mapping.transformation.usesFormatString {
                 formatRow
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .background(
+            isHovering ? Color.primary.opacity(0.035) : .clear,
+            in: .rect(cornerRadius: Metrics.tileRadius)
+        )
+        .onHover { isHovering = $0 }
+        .motion(Motion.quick, value: isHovering)
+        .motion(Motion.standard, value: mapping.transformation)
+        .motion(Motion.lively, value: mapping.isMapped)
+        .motion(Motion.lively, value: mapping.isAutoMatched)
     }
 
     private var fieldRow: some View {
@@ -162,23 +163,22 @@ private struct MappingRow: View {
             .labelsHidden()
             .frame(width: 160, alignment: .leading)
 
-            // Status indicator
             HStack(spacing: 4) {
-                if mapping.isMapped {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    if mapping.isAutoMatched {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.orange)
-                    }
-                } else {
-                    Image(systemName: "circle")
-                        .foregroundStyle(.quaternary)
+                Image(systemName: mapping.isMapped ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(mapping.isMapped ? AnyShapeStyle(.green) : AnyShapeStyle(.quaternary))
+                    .contentTransition(.symbolEffect(.replace))
+                if mapping.isAutoMatched {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.mergeformOrange)
+                        .transition(.scale.combined(with: .opacity))
+                        .help("Matched automatically")
                 }
             }
-            .font(.system(size: 13))
+            .font(.system(size: 15))
             .frame(width: 70, alignment: .center)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(mapping.isMapped ? (mapping.isAutoMatched ? "Mapped automatically" : "Mapped") : "Not mapped")
         }
     }
 

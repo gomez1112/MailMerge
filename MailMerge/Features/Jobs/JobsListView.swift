@@ -175,20 +175,6 @@ struct ContentView: View {
         JobNavigation.focusedJobID(path: navigationPath)
     }
 
-    private var emptyCategory: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "tray")
-                .font(.body)
-                .foregroundStyle(.tertiary)
-            Text("No jobs")
-                .foregroundStyle(.tertiary)
-                .font(.callout)
-            Spacer()
-        }
-        .padding()
-        .background(Color.mergeformSurface.opacity(0.42), in: .rect(cornerRadius: 10))
-    }
-
     // MARK: - Actions
 
     /// Opens the job handed over from the Templates tab, or restores this window's path.
@@ -203,70 +189,109 @@ struct ContentView: View {
         pendingJobID = nil
     }
 
-    @ViewBuilder
-    private func categorySection(for category: Category) -> some View {
-        let categoryJobs = filteredJobs.filter { ($0.category ?? uncategorizedCategory)?.id == category.id }
-        VStack(alignment: .leading, spacing: 10) {
-            CategoryHeaderView(
-                category: category,
-                onEdit: { categoryEditorTarget = .edit(category) },
-                onDelete: { pendingDeleteCategory = category }
-            )
-            if categoryJobs.isEmpty {
-                emptyCategory
-            } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(categoryJobs) { job in
-                        jobRow(for: job)
-                            .contextMenu {
-                                Button("Rename") { beginRename(job) }
-                                Button("Delete", role: .destructive) { requestDelete(job) }
-                            }
-                    }
-                }
-            }
-        }
-    }
-
     private func persistNavigationPath(_ path: [UUID]) {
         navigationPathData = (try? JSONEncoder().encode(path)) ?? Data()
     }
 
     private var jobsList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                jobsOverview
-                ForEach(categories) { category in
-                    categorySection(for: category)
+        Group {
+            if jobs.isEmpty {
+                ContentUnavailableView {
+                    Label("No Jobs Yet", systemImage: "tray")
+                } description: {
+                    Text("A job merges a Word template with a spreadsheet to make a PDF for every row.")
+                } actions: {
+                    Button("New Job", systemImage: "plus", action: createJob)
+                        .buttonStyle(.borderedProminent)
                 }
+            } else if visibleCategories.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Metrics.section) {
+                        jobsOverview
+                        ForEach(visibleCategories.enumerated(), id: \.element.id) { index, category in
+                            categorySection(for: category)
+                                .revealOnAppear(order: index + 3)
+                        }
+                    }
+                    .padding(Metrics.page)
+                    .frame(maxWidth: 1040, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .motion(Motion.standard, value: filteredJobs.map(\.id))
+                }
+                .scrollIndicators(.hidden)
             }
-            .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.mergeformBackground)
     }
 
+    /// Categories with jobs to show, after searching. Empty categories are hidden; they're
+    /// still available in Manage Categories and when creating a job.
+    private var visibleCategories: [Category] {
+        categories.filter { !jobs(in: $0).isEmpty }
+    }
+
+    private func jobs(in category: Category) -> [MailMergeJob] {
+        filteredJobs.filter { ($0.category ?? uncategorizedCategory)?.id == category.id }
+    }
+
     private var jobsOverview: some View {
-        HStack(alignment: .top, spacing: 14) {
-            OverviewMetricCard(
-                title: "Jobs",
+        HStack(alignment: .top, spacing: Metrics.regular) {
+            StatCard(
+                systemImageName: "tray.full.fill",
                 value: jobs.count.formatted(.number),
-                systemImageName: "rectangle.stack.fill",
-                tint: .mergeformBlue
+                label: "Jobs",
+                iconColor: .mergeformBlue
             )
-            OverviewMetricCard(
-                title: "Ready",
-                value: jobs.filter(\.isConfigured).count.formatted(.number),
+            .revealOnAppear(order: 0)
+            StatCard(
                 systemImageName: "checkmark.seal.fill",
-                tint: .green
+                value: jobs.filter(\.isConfigured).count.formatted(.number),
+                label: "Ready to Run",
+                iconColor: .green
             )
-            OverviewMetricCard(
-                title: "Completed",
-                value: jobs.filter { $0.status == .completed }.count.formatted(.number),
+            .revealOnAppear(order: 1)
+            StatCard(
                 systemImageName: "doc.badge.gearshape.fill",
-                tint: .mergeformOrange
+                value: jobs.filter { $0.status == .completed }.count.formatted(.number),
+                label: "Completed",
+                iconColor: .mergeformOrange
             )
+            .revealOnAppear(order: 2)
+        }
+    }
+
+    @ViewBuilder
+    private func categorySection(for category: Category) -> some View {
+        let categoryJobs = jobs(in: category)
+        VStack(alignment: .leading, spacing: Metrics.compact) {
+            CategoryHeaderView(
+                category: category,
+                jobCount: categoryJobs.count,
+                onEdit: { categoryEditorTarget = .edit(category) },
+                onDelete: { pendingDeleteCategory = category }
+            )
+            VStack(spacing: 0) {
+                ForEach(categoryJobs.enumerated(), id: \.element.id) { index, job in
+                    if index > 0 {
+                        Divider()
+                            .padding(.leading, 68)
+                    }
+                    jobRow(for: job)
+                        .contextMenu {
+                            Button("Rename…") { beginRename(job) }
+                            Button("Delete", role: .destructive) { requestDelete(job) }
+                        }
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.96))
+                        ))
+                }
+            }
+            .clipShape(.rect(cornerRadius: Metrics.cardRadius))
+            .cardSurface(padding: 0)
         }
     }
 
@@ -465,42 +490,11 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Overview Metric Card
-
-private struct OverviewMetricCard: View {
-    let title: String
-    let value: String
-    let systemImageName: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: systemImageName)
-                .font(.title3)
-                .foregroundStyle(tint)
-            Text(value)
-                .font(.largeTitle)
-                .bold()
-                .monospacedDigit()
-                .foregroundStyle(.primary)
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.mergeformPanel, in: .rect(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.mergeformStroke)
-        )
-    }
-}
-
 // MARK: - Category Header
 
 private struct CategoryHeaderView: View {
     let category: Category
+    let jobCount: Int
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -509,22 +503,27 @@ private struct CategoryHeaderView: View {
     }
 
     var body: some View {
-        HStack(spacing: 9) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(categoryColor)
-                .frame(width: 4, height: 18)
-            Image(systemName: category.systemImageName)
-                .font(.callout)
-                .foregroundStyle(categoryColor)
+        HStack(spacing: Metrics.compact) {
+            IconTile(systemImage: category.systemImageName, tint: categoryColor, size: 26)
             Text(category.name)
-                .font(.caption)
-                .bold()
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text(jobCount.formatted(.number))
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Color.primary.opacity(0.07), in: .capsule)
+                .contentTransition(.numericText())
             Spacer()
         }
+        .padding(.leading, 2)
+        .motion(Motion.standard, value: jobCount)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
         .contextMenu {
-            Button("Rename") { onEdit() }
+            Button("Rename…") { onEdit() }
             Button("Delete", role: .destructive) { onDelete() }
                 .disabled(category.isLocked)
         }
@@ -536,62 +535,73 @@ private struct CategoryHeaderView: View {
 private struct JobRowView: View {
     let job: MailMergeJob
     @AppStorage("showRelativeDates") private var showRelativeDates = true
+    @State private var isHovering = false
 
-    private var iconColor: Color {
+    private var symbol: String {
         switch job.status {
-        case .completed: return .green
-        case .running: return .mergeformOrange
-        case .failed: return .red
-        default: return .mergeformBlue
+        case .draft: return "doc.text"
+        case .configured: return "doc.text.fill"
+        case .running: return "arrow.triangle.2.circlepath"
+        case .completed: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
         }
     }
 
-    private var iconName: String {
-        switch job.status {
-        case .completed: return "checkmark.circle.fill"
-        case .running: return "arrow.trianglehead.2.clockwise"
-        case .failed: return "exclamationmark.circle.fill"
-        default: return "doc.text.fill"
-        }
+    private var tint: Color {
+        job.status == .draft ? .mergeformBlue : job.status.tint
+    }
+
+    private var subtitle: String {
+        let template = job.templateFileName ?? "No template yet"
+        return "\(template) · \(job.modifiedDescription(relative: showRelativeDates))"
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 13) {
-            Image(systemName: iconName)
-                .font(.title3)
-                .foregroundStyle(iconColor)
-                .frame(width: 44, height: 44)
-                .background(iconColor.opacity(0.12), in: .rect(cornerRadius: 10))
+        HStack(spacing: 14) {
+            IconTile(systemImage: symbol, tint: tint, size: 40)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.rotate, isActive: job.status == .running)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(job.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text(job.modifiedDescription(relative: showRelativeDates))
+                    .lineLimit(1)
+                Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
-            Spacer()
+            Spacer(minLength: Metrics.regular)
 
-            VStack(alignment: .trailing, spacing: 5) {
-                StatusBadge(status: job.status)
-                if job.configurationProgress > 0 && job.configurationProgress < 1 {
-                    ProgressView(value: job.configurationProgress)
-                        .tint(Color.mergeformBlue)
-                        .frame(width: 68)
+            if job.status == .draft {
+                HStack(spacing: 8) {
+                    Text("Setup")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ProgressRing(progress: job.configurationProgress, size: 26, lineWidth: 3.5, showsPercentage: false)
                 }
+            } else {
+                StatusBadge(status: job.status)
             }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .offset(x: isHovering ? 3 : 0)
         }
-        .padding()
-        .background(Color.mergeformPanel, in: .rect(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.mergeformStroke)
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(isHovering ? Color.primary.opacity(0.04) : .clear)
+        .contentShape(.rect)
+        .onHover { isHovering = $0 }
+        .motion(Motion.quick, value: isHovering)
+        .motion(Motion.standard, value: job.status)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(job.name), \(job.status.label), \(job.modifiedDescription(relative: showRelativeDates))")
-        .accessibilityHint("Double-tap to view and edit this job")
+        .accessibilityHint("Opens the job")
     }
 }
 
@@ -603,6 +613,7 @@ private struct NewJobCategoryPickerView: View {
     @Binding var selectedCategoryID: UUID?
     @Binding var jobName: String
     let onCreate: () -> Void
+    @Namespace private var selectionHighlight
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -637,39 +648,42 @@ private struct NewJobCategoryPickerView: View {
                             selectedCategoryID = category.id
                         } label: {
                             HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(CategoryColorOption.color(for: category.colorName).opacity(0.15))
-                                    Image(systemName: category.systemImageName)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(CategoryColorOption.color(for: category.colorName))
-                                }
-                                .frame(width: 30, height: 30)
+                                IconTile(
+                                    systemImage: category.systemImageName,
+                                    tint: CategoryColorOption.color(for: category.colorName),
+                                    size: 30
+                                )
                                 Text(category.name)
-                                    .font(.callout)
-                                    .bold(isSelected)
+                                    .font(.callout.weight(isSelected ? .semibold : .regular))
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 if isSelected {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .semibold))
+                                    Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(Color.mergeformBlue)
+                                        .transition(.scale.combined(with: .opacity))
                                 }
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(isSelected ? Color.mergeformBlue.opacity(0.08) : Color.primary.opacity(0.04))
-                            )
+                            .contentShape(.rect(cornerRadius: Metrics.tileRadius))
+                            .background {
+                                if isSelected {
+                                    RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
+                                        .fill(Color.mergeformBlue.opacity(0.10))
+                                        .matchedGeometryEffect(id: "selectedCategory", in: selectionHighlight)
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
+                .motion(Motion.quick, value: selectedCategoryID)
             }
 
             HStack {
                 Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Create Job") {
                     onCreate()

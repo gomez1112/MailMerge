@@ -5,7 +5,10 @@ struct JobDetailView: View {
     @Environment(\.services) private var services
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedStep: MergeStep = .template
+    /// The edge the next step slides in from: trailing when moving forward.
+    @State private var stepEdge: Edge = .trailing
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var retryAction: (() -> Void)?
@@ -47,8 +50,10 @@ struct JobDetailView: View {
             } else {
                 HStack(spacing: 0) {
                     stepSidebar
-                        .frame(minWidth: 220, idealWidth: 256, maxWidth: 296)
-                    Divider()
+                        .frame(width: 272)
+                    Rectangle()
+                        .fill(Color.mergeformStroke)
+                        .frame(width: 1)
                     stepContent
                 }
             }
@@ -70,157 +75,132 @@ struct JobDetailView: View {
 
     private var stepSidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Job name header
+            jobSummary
+                .padding(Metrics.regular)
+                .padding(.top, Metrics.tight)
+
+            Divider()
+                .padding(.horizontal, Metrics.regular)
+
+            ScrollView {
+                StepRail(
+                    selection: selectedStep,
+                    isComplete: stepCompletion,
+                    isEnabled: stepIsEnabled,
+                    onSelect: select
+                )
+                .padding(Metrics.compact)
+            }
+            .scrollIndicators(.hidden)
+
+            if selectedStep != .preview {
+                runMergeButton
+                    .padding(Metrics.regular)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .background(Color.mergeformPanel)
+        .motion(Motion.standard, value: selectedStep == .preview)
+    }
+
+    private var jobSummary: some View {
+        HStack(spacing: 14) {
+            ProgressRing(
+                progress: job.configurationProgress,
+                size: 54,
+                tint: job.isConfigured ? .green : .mergeformBlue
+            )
             VStack(alignment: .leading, spacing: 6) {
                 Text(job.name)
                     .font(.headline)
                     .lineLimit(2)
-                    .foregroundStyle(.white)
                 StatusBadge(status: job.status)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 24)
-            .padding(.bottom, 18)
-
-            ProgressView(value: job.configurationProgress)
-                .tint(job.configurationProgress == 1 ? .green : .mergeformOrange)
-                .animation(.smooth(duration: 0.5), value: job.configurationProgress)
-            .padding(.horizontal, 18)
-            .padding(.bottom, 4)
-
-            HStack {
-                Text("\(Int(job.configurationProgress * 100))% complete")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.52))
-                Spacer()
-            }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 18)
-
-            Divider()
-                .overlay(Color.white.opacity(0.12))
-                .padding(.bottom, 12)
-
-            Text("Setup Steps")
-                .font(.caption2)
-                .bold()
-                .foregroundStyle(.white.opacity(0.42))
-                .textCase(.uppercase)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 8)
-
-            ScrollView {
-                LazyVStack(spacing: 3) {
-                    ForEach(MergeStep.allCases) { step in
-                        StepButton(
-                            step: step,
-                            isSelected: selectedStep == step,
-                            isComplete: stepCompletion(step),
-                            isEnabled: stepIsEnabled(step)
-                        ) {
-                            withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
-                                selectedStep = step
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 16)
-            }
-            .scrollIndicators(.hidden)
-
             Spacer(minLength: 0)
-
-            if selectedStep != .preview {
-                VStack(spacing: 10) {
-                    Divider()
-                        .overlay(Color.white.opacity(0.12))
-                    runMergeButton
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 16)
-                }
-            }
         }
-        .background(Color.mergeformInk)
-        // The ink sidebar is dark in both appearances, so its system colors should be too.
-        .environment(\.colorScheme, .dark)
     }
 
-    @ViewBuilder
     private var runMergeButton: some View {
-        let label = Label("Run Merge", systemImage: "play.fill")
-            .font(.system(size: 13, weight: .semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-        if #available(macOS 26.0, *) {
-            Button {
-                withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
-            } label: {
-                label
-            }
-            .buttonStyle(GlassProminentButtonStyle())
-            .disabled(!job.isConfigured)
-            .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
-        } else {
-            Button {
-                withAnimation(.spring(duration: 0.25, bounce: 0.1)) { selectedStep = .preview }
-            } label: {
-                label
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
-            .disabled(!job.isConfigured)
-            .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
+        Button {
+            select(.preview)
+        } label: {
+            Label("Run Merge", systemImage: "play.fill")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .symbolEffect(.bounce, value: job.isConfigured)
         }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .disabled(!job.isConfigured)
+        .help(job.isConfigured ? "Go to Preview & Run" : "Complete all setup steps first")
     }
 
     // MARK: - Step Content
 
     private var stepContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                stepBreadcrumb
-                    .padding(.horizontal, 32)
-                    .padding(.top, 30)
-                    .padding(.bottom, 22)
+            VStack(alignment: .leading, spacing: Metrics.section) {
+                stepProgress
                 stepView
                     .id(selectedStep)
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 40)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        )
-                    )
+                    .transition(stepTransition)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Metrics.page)
+            .frame(maxWidth: 1040, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
+        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.mergeformBackground)
     }
 
-    private var stepBreadcrumb: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Image(systemName: selectedStep.systemImageName)
-                    .font(.caption)
-                    .bold()
-                    .foregroundStyle(Color.mergeformBlue)
-            }
-            .frame(width: 22, height: 22)
+    /// Steps slide in from the direction of travel, or cross-fade with Reduce Motion.
+    private var stepTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let removalEdge: Edge = stepEdge == .trailing ? .leading : .trailing
+        return .asymmetric(
+            insertion: .move(edge: stepEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
+    }
+
+    /// Where the current step sits among all five, as a row of segments.
+    private var stepProgress: some View {
+        HStack(spacing: Metrics.compact) {
             Text("Step \(selectedStep.rawValue + 1) of \(MergeStep.allCases.count)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundStyle(.quaternary)
-            Text(selectedStep.title)
-                .font(.caption)
-                .bold()
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(selectedStep.rawValue)))
+            HStack(spacing: 4) {
+                ForEach(MergeStep.allCases) { step in
+                    Capsule()
+                        .fill(segmentColor(for: step))
+                        .frame(width: step == selectedStep ? 22 : 10, height: 5)
+                }
+            }
         }
-        .animation(.smooth(duration: 0.2), value: selectedStep)
+        .motion(Motion.standard, value: selectedStep)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(selectedStep.rawValue + 1) of \(MergeStep.allCases.count), \(selectedStep.title)")
+    }
+
+    private func segmentColor(for step: MergeStep) -> Color {
+        if step == selectedStep { return .mergeformBlue }
+        return stepCompletion(step) ? .green.opacity(0.7) : Color.primary.opacity(0.12)
+    }
+
+    private func select(_ step: MergeStep) {
+        guard step != selectedStep else { return }
+        stepEdge = step.rawValue > selectedStep.rawValue ? .trailing : .leading
+        // Change the step in the next update so the outgoing step already uses the new
+        // direction for its exit.
+        Task { @MainActor in
+            withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
+                selectedStep = step
+            }
+        }
     }
 
     @ViewBuilder

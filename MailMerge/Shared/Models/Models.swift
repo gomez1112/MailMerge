@@ -376,6 +376,17 @@ enum MergeStep: Int, CaseIterable, Identifiable {
         }
     }
 
+    /// What the step asks for, in a few words.
+    var summary: String {
+        switch self {
+        case .template: return "Choose a Word document"
+        case .dataSource: return "Pick a spreadsheet"
+        case .fieldMapping: return "Match fields to columns"
+        case .output: return "Choose where PDFs go"
+        case .preview: return "Check and run"
+        }
+    }
+
     var systemImageName: String {
         switch self {
         case .template: return "doc.richtext"

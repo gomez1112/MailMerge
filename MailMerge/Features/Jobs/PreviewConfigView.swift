@@ -26,57 +26,60 @@ struct PreviewConfigView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Metrics.section) {
             SectionHeader(
                 title: "Preview & Run",
-                subtitle: "Review a sample document, then run the full merge.",
-                systemImageName: "play.rectangle"
+                subtitle: "Check a sample document, then create every PDF.",
+                systemImageName: "play.rectangle",
+                iconColor: .green
             )
 
-            // Stats row
-            HStack(spacing: 12) {
+            HStack(spacing: Metrics.regular) {
                 StatCard(
-                    systemImageName: "doc.plaintext.fill",
-                    value: "\(job.fieldMappings.count)",
+                    systemImageName: "text.badge.checkmark",
+                    value: job.fieldMappings.count.formatted(.number),
                     label: "Fields",
                     iconColor: .mergeformBlue
                 )
+                .revealOnAppear(order: 0)
                 StatCard(
                     systemImageName: "checkmark.circle.fill",
-                    value: "\(job.fieldMappings.filter { $0.isMapped }.count)",
+                    value: job.mappedFieldCount.formatted(.number),
                     label: "Mapped",
                     iconColor: .green
                 )
+                .revealOnAppear(order: 1)
                 StatCard(
                     systemImageName: "tablecells.fill",
-                    value: "\(job.availableColumns.count)",
+                    value: job.availableColumns.count.formatted(.number),
                     label: "Columns",
                     iconColor: .mergeformOrange
                 )
+                .revealOnAppear(order: 2)
             }
 
             Group {
                 if horizontalSizeClass == .compact {
-                    VStack(spacing: 16) {
+                    VStack(spacing: Metrics.regular) {
+                        runMergeCard
                         previewPane
                         mergeSettingsCard
-                        runMergeCard
                     }
                 } else {
-                    HStack(alignment: .top, spacing: 16) {
+                    HStack(alignment: .top, spacing: Metrics.regular) {
                         previewPane
-
-                        VStack(spacing: 12) {
-                            mergeSettingsCard
+                        VStack(spacing: Metrics.regular) {
                             runMergeCard
+                            mergeSettingsCard
                         }
-                        .frame(width: 260)
+                        .frame(width: 300)
                     }
                 }
             }
+            .revealOnAppear(order: 3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .alert("Merge Error", isPresented: $showingErrorAlert) {
+        .alert("Preview Error", isPresented: $showingErrorAlert) {
             Button("OK") { }
         } message: {
             Text(errorMessage)
@@ -94,78 +97,204 @@ struct PreviewConfigView: View {
         ConfigCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    CardLabel(title: "Preview PDF", systemImage: "doc.richtext")
+                    CardLabel(title: "Sample Document", systemImage: "doc.richtext")
                     Spacer()
-                    Button {
-                        generatePreview()
-                    } label: {
-                        if isGenerating {
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.mini)
-                                Text("Generating…")
-                            }
-                        } else {
-                            Label("Generate Preview", systemImage: "eye")
+                    if hasPreview {
+                        Button {
+                            generatePreview()
+                        } label: {
+                            Label(isGenerating ? "Updating…" : "Refresh", systemImage: "arrow.clockwise")
+                                .symbolEffect(.rotate, isActive: isGenerating)
                         }
+                        .disabled(isGenerating)
                     }
-                    .font(.callout)
-                    .disabled(isGenerating)
                 }
 
-                if let previewData {
-                    PDFPreviewView(data: previewData)
-                        .frame(minHeight: 550)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.07))
-                        )
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.mergeformSurface.opacity(0.5))
-                            .frame(minHeight: 550)
-                        VStack(spacing: 12) {
-                            Image(systemName: "doc.richtext")
-                                .font(.system(size: 36))
-                                .foregroundStyle(.quaternary)
-                            Text("Generate a preview to validate your merge.")
-                                .font(.callout)
-                                .foregroundStyle(.tertiary)
+                ZStack {
+                    RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
+                        .fill(Color.primary.opacity(0.04))
+                    if let previewData {
+                        PDFPreviewView(data: previewData)
+                            .clipShape(.rect(cornerRadius: Metrics.tileRadius))
+                            .transition(.opacity)
+                    } else {
+                        VStack(spacing: Metrics.regular) {
+                            Image(systemName: "doc.text.magnifyingglass")
+                                .font(.system(size: 44, weight: .light))
+                                .foregroundStyle(Color.mergeformBlue.gradient)
+                                .symbolEffect(.breathe, isActive: isGenerating)
+                            VStack(spacing: 4) {
+                                Text("See a merged document before you run")
+                                    .font(.headline)
+                                Text("The preview fills the template with one row of your data.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            Button {
+                                generatePreview()
+                            } label: {
+                                Label(isGenerating ? "Generating…" : "Generate Preview", systemImage: "eye")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isGenerating)
                         }
+                        .padding(Metrics.section)
+                        .transition(.opacity)
                     }
+                }
+                .frame(minHeight: 560)
+                .overlay {
+                    RoundedRectangle(cornerRadius: Metrics.tileRadius, style: .continuous)
+                        .strokeBorder(Color.mergeformStroke)
                 }
 
                 if hasPreview {
                     recordNavigation
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .motion(Motion.standard, value: hasPreview)
         }
     }
 
     private var recordNavigation: some View {
-        HStack(spacing: 10) {
-            Button {
+        HStack(spacing: Metrics.compact) {
+            Button("Previous Record", systemImage: "chevron.left") {
                 loadPreview(at: currentRecordIndex - 1)
-            } label: {
-                Image(systemName: "chevron.left")
             }
-            .disabled(!hasPreview || isGenerating || currentRecordIndex == 0)
+            .labelStyle(.iconOnly)
+            .disabled(isGenerating || currentRecordIndex == 0)
 
             Text("Record \(currentRecordIndex + 1) of \(max(totalRecordCount, 1))")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(.callout.weight(.medium))
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(currentRecordIndex)))
                 .frame(maxWidth: .infinity)
 
-            Button {
+            Button("Next Record", systemImage: "chevron.right") {
                 loadPreview(at: currentRecordIndex + 1)
-            } label: {
-                Image(systemName: "chevron.right")
             }
-            .disabled(!hasPreview || isGenerating || currentRecordIndex >= max(totalRecordCount - 1, 0))
+            .labelStyle(.iconOnly)
+            .disabled(isGenerating || currentRecordIndex >= max(totalRecordCount - 1, 0))
         }
         .buttonStyle(.bordered)
-        .controlSize(.small)
+        .motion(Motion.quick, value: currentRecordIndex)
+    }
+
+    // MARK: - Run Merge Card
+
+    private var runMergeCard: some View {
+        ConfigCard {
+            VStack(alignment: .leading, spacing: 14) {
+                CardLabel(title: "Run Merge", systemImage: "play.fill")
+
+                if let run, run.isActive {
+                    mergeProgress(for: run)
+                        .transition(.scale(scale: 0.95).combined(with: .opacity))
+                    Button(role: .cancel) {
+                        run.cancel()
+                    } label: {
+                        Label(run.isCancelling ? "Stopping…" : "Cancel Merge", systemImage: "xmark")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .disabled(run.isCancelling)
+                } else {
+                    if let outcome = run?.outcome {
+                        mergeOutcome(outcome)
+                            .transition(.scale(scale: 0.95).combined(with: .opacity))
+                    } else {
+                        Text(job.isConfigured
+                            ? "Everything is set. Create a PDF for every row in your sheet."
+                            : "Finish the setup steps to run the merge.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if job.isConfigured, unmappedFieldCount > 0 {
+                        Label(
+                            unmappedFieldCount == 1
+                                ? "1 field isn't mapped and will be left blank."
+                                : "\(unmappedFieldCount) fields aren't mapped and will be left blank.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.mergeformOrange)
+                    }
+
+                    Button {
+                        startMerge()
+                    } label: {
+                        Label(run?.outcome == nil ? "Start Merge" : "Run Again", systemImage: "play.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+                    .disabled(!job.isConfigured)
+                }
+            }
+            .motion(Motion.standard, value: run?.isActive)
+        }
+    }
+
+    @ViewBuilder
+    private func mergeProgress(for run: MergeRun) -> some View {
+        if run.progress.total == 0 {
+            HStack(spacing: Metrics.compact) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(run.isCancelling ? "Stopping…" : "Reading your data…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, Metrics.tight)
+        } else {
+            MergeProgressView(
+                current: run.progress.completed,
+                total: run.progress.total,
+                recordsPerSecond: run.recordsPerSecond,
+                estimatedTimeRemaining: run.estimatedTimeRemaining,
+                isStopping: run.isCancelling
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func mergeOutcome(_ outcome: MergeRun.Outcome) -> some View {
+        switch outcome {
+        case .completed(let result):
+            VStack(spacing: Metrics.compact) {
+                CompletionMark()
+                Text("Merge complete")
+                    .font(.headline)
+                Text("\(result.recordCount.formatted(.number)) documents in \(Duration.seconds(result.duration).formatted(.units(allowed: [.minutes, .seconds], width: .abbreviated, fractionalPart: .show(length: 1))))")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button {
+                    emailMergeResult(result)
+                } label: {
+                    Label("Email Output", systemImage: "paperplane.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(result.attachmentURL == nil)
+                .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Metrics.tight)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        case .cancelled:
+            Label("Merge cancelled.", systemImage: "xmark.circle")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Merge Settings Card
@@ -173,168 +302,41 @@ struct PreviewConfigView: View {
     private var mergeSettingsCard: some View {
         ConfigCard {
             VStack(alignment: .leading, spacing: 12) {
-                CardLabel(title: "Merge Settings", systemImage: "slider.horizontal.3")
-
+                CardLabel(title: "Settings", systemImage: "slider.horizontal.3")
                 Toggle(isOn: $job.combineIntoSinglePDF) {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Combine into single PDF")
-                            .font(.callout)
-                        Text("All records in one file")
+                        Text("Combine into a single PDF")
+                        Text("Every record in one document")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .toggleStyle(.switch)
+
                 Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    CardLabel(title: "Email Delivery", systemImage: "paperplane")
-                    Toggle("Send after merge", isOn: $sendAfterMerge)
-                        .font(.callout)
-                    TextField("Recipient (optional)", text: $emailRecipient)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.callout)
-                    TextField("Subject", text: $emailSubject)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.callout)
-                    TextEditor(text: $emailBody)
-                        .font(.callout)
-                        .frame(minHeight: 80)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.12))
-                        )
-                }
 
-                if let run {
-                    mergeStatus(for: run)
+                Toggle(isOn: $sendAfterMerge) {
+                    Text("Email after merging")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func mergeStatus(for run: MergeRun) -> some View {
-        if run.isActive {
-            if run.progress.total == 0 {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(run.isCancelling ? "Stopping…" : "Loading data…")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-            } else {
-                Divider()
-                    .padding(.vertical, 4)
-                MergeProgressView(
-                    current: run.progress.completed,
-                    total: run.progress.total,
-                    recordsPerSecond: run.recordsPerSecond,
-                    estimatedTimeRemaining: run.estimatedTimeRemaining,
-                    isStopping: run.isCancelling
-                )
-            }
-        } else if let outcome = run.outcome {
-            Divider()
-                .padding(.vertical, 4)
-            switch outcome {
-            case .completed(let result):
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.system(size: 14))
-                        Text("Merge complete")
-                            .font(.callout)
-                            .bold()
+                .toggleStyle(.switch)
+                if sendAfterMerge {
+                    VStack(alignment: .leading, spacing: Metrics.tight) {
+                        TextField("Recipient (optional)", text: $emailRecipient)
+                        TextField("Subject", text: $emailSubject)
+                        TextEditor(text: $emailBody)
+                            .font(.body)
+                            .frame(minHeight: 80)
+                            .scrollContentBackground(.hidden)
+                            .padding(4)
+                            .background(Color.primary.opacity(0.04), in: .rect(cornerRadius: 6))
                     }
-                    Text("\(result.recordCount) records in \(result.duration, format: .number.precision(.fractionLength(1)))s")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
-
-                Button {
-                    emailMergeResult(result)
-                } label: {
-                    Label("Email Output", systemImage: "paperplane.fill")
-                        .font(.callout)
-                        .bold()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.bordered)
-                .disabled(result.attachmentURL == nil)
-            case .failed(let message):
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            case .cancelled:
-                Label("Merge cancelled.", systemImage: "xmark.circle")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    // MARK: - Run Merge Card
-
-    private var runMergeCard: some View {
-        ConfigCard {
-            VStack(alignment: .leading, spacing: 12) {
-                CardLabel(title: "Run Merge", systemImage: "play.fill")
-                Text(job.isConfigured
-                    ? "All steps complete. Ready to generate your documents."
-                    : "Complete all configuration steps before running.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if job.isConfigured, unmappedFieldCount > 0 {
-                    Label(
-                        unmappedFieldCount == 1
-                            ? "1 field isn't mapped and will be left blank."
-                            : "\(unmappedFieldCount) fields aren't mapped and will be left blank.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                }
-
-                if let run, run.isActive {
-                    Button {
-                        run.cancel()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "xmark.circle.fill")
-                            Text(run.isCancelling ? "Stopping…" : "Cancel Merge")
-                                .font(.callout)
-                                .bold()
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .disabled(run.isCancelling)
-                } else {
-                    Button {
-                        startMerge()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "play.fill")
-                            Text("Start Merge")
-                                .font(.callout)
-                                .bold()
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(job.isConfigured ? Color.mergeformBlue : .secondary)
-                    .disabled(!job.isConfigured)
+                    .textFieldStyle(.roundedBorder)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
+            .motion(Motion.standard, value: sendAfterMerge)
         }
     }
 
@@ -418,6 +420,8 @@ private struct EmailDraft {
 
 // MARK: - Merge Progress View
 
+/// A merge in progress: a ring that fills as records are written, with the count, the
+/// rate, and the time left.
 private struct MergeProgressView: View {
     let current: Int
     let total: Int
@@ -425,114 +429,56 @@ private struct MergeProgressView: View {
     let estimatedTimeRemaining: TimeInterval?
     let isStopping: Bool
 
-    private var percentage: Double {
-        guard total > 0 else { return 0 }
-        return Double(current) / Double(total)
+    private var fraction: Double {
+        total > 0 ? Double(current) / Double(total) : 0
     }
-    
+
+    private var detail: String {
+        if isStopping { return "Stopping…" }
+        var parts: [String] = []
+        if let recordsPerSecond {
+            parts.append("\(recordsPerSecond.formatted(.number.precision(.fractionLength(0)))) per second")
+        }
+        if let estimatedTimeRemaining, estimatedTimeRemaining >= 1 {
+            let remaining = Duration.seconds(estimatedTimeRemaining.rounded())
+                .formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2))
+            parts.append("about \(remaining) left")
+        }
+        return parts.isEmpty ? "Working…" : parts.joined(separator: " · ")
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 6)
-                        .frame(width: 80, height: 80)
-                    
-                    Circle()
-                        .trim(from: 0, to: percentage)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.mergeformBlue, Color.mergeformOrange.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                        )
-                        .frame(width: 80, height: 80)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.spring(duration: 0.5), value: percentage)
-                    
-                    Text("\(Int(percentage * 100))%")
-                        .font(.title3)
-                        .bold()
-                        .foregroundStyle(Color.mergeformBlue)
-                        .monospacedDigit()
-                }
-                
-                VStack(spacing: 4) {
-                    HStack(spacing: 4) {
-                        Text("\(current)")
-                            .font(.title2)
-                            .bold()
-                            .foregroundStyle(.primary)
-                            .monospacedDigit()
-                        Text("/ \(total)")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    
-                    Text("records processed")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                
-                if let recordsPerSecond {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gauge.with.dots.needle.67percent")
-                            .font(.system(size: 11))
-                        Text("\(Int(recordsPerSecond)) rows/sec")
-                            .font(.caption)
-                            .bold()
-                    }
-                    .foregroundStyle(Color.mergeformOrange)
-                    .padding(.top, 4)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            
-            VStack(spacing: 8) {
-                ProgressView(value: percentage)
-                    .tint(Color.mergeformOrange)
-                    .animation(.spring(duration: 0.5), value: percentage)
-                
-                HStack {
-                    if let estimatedTimeRemaining, estimatedTimeRemaining > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock.fill")
-                                .font(.system(size: 10))
-                            Text(formatTimeRemaining(estimatedTimeRemaining))
-                                .font(.caption)
-                                .bold()
-                        }
-                        .foregroundStyle(.secondary)
-                    } else {
-                        Spacer()
-                    }
-                    
-                    Spacer()
-                    
-                    Text(isStopping ? "Stopping…" : "Processing…")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
+        VStack(spacing: 12) {
+            ProgressRing(progress: fraction, size: 96, lineWidth: 8, tint: isStopping ? .secondary : .mergeformBlue)
+            VStack(spacing: 2) {
+                Text("\(current.formatted(.number)) of \(total.formatted(.number))")
+                    .font(.headline)
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(current)))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
         }
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Metrics.tight)
+        .motion(Motion.standard, value: current)
+        .accessibilityElement(children: .combine)
     }
-    
-    private func formatTimeRemaining(_ seconds: TimeInterval) -> String {
-        let rounded = Int(seconds.rounded())
-        if rounded < 60 {
-            return "\(rounded)s remaining"
-        } else if rounded < 3600 {
-            let minutes = rounded / 60
-            let secs = rounded % 60
-            return "\(minutes)m \(secs)s remaining"
-        } else {
-            let hours = rounded / 3600
-            let minutes = (rounded % 3600) / 60
-            return "\(hours)h \(minutes)m remaining"
-        }
+}
+
+/// A checkmark that draws itself in when a merge completes.
+private struct CompletionMark: View {
+    @State private var isDrawn = false
+
+    var body: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 44))
+            .foregroundStyle(.green)
+            .symbolEffect(.drawOn, isActive: !isDrawn)
+            .symbolEffect(.bounce, value: isDrawn)
+            .onAppear { isDrawn = true }
+            .accessibilityHidden(true)
     }
 }

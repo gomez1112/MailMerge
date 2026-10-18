@@ -11,18 +11,19 @@ struct DataSourceConfigView: View {
     @State private var previewData = SheetData(headers: [], rows: [])
     @State private var isLoadingPreview = false
     @State private var isLoadingSheets = false
+    @Namespace private var sheetSelection
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Metrics.section) {
             SectionHeader(
                 title: "Data Source",
-                subtitle: "Pick an Excel spreadsheet and the sheet to merge.",
-                systemImageName: "tablecells"
+                subtitle: "Pick an Excel spreadsheet (.xlsx) and the sheet to merge.",
+                systemImageName: "tablecells",
+                iconColor: .green
             )
 
-            // File selection card
             ConfigCard {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: Metrics.regular) {
                     CardLabel(title: "Spreadsheet File", systemImage: "tablecells")
                     if let fileName = job.dataSourceFileName {
                         SelectedFileRow(
@@ -33,64 +34,52 @@ struct DataSourceConfigView: View {
                         ) {
                             showingImporter = true
                         }
+                        .transition(.scale(scale: 0.97).combined(with: .opacity))
                     } else {
                         DropTargetView(
-                            title: "Drop your XLSX spreadsheet",
-                            subtitle: "or click to browse",
-                            systemImageName: "tablecells"
+                            title: "Drop your Excel spreadsheet here",
+                            subtitle: "or click to choose an .xlsx file",
+                            systemImageName: "tablecells.badge.ellipsis"
                         ) {
                             showingImporter = true
                         }
+                        .transition(.opacity)
                     }
                 }
+                .motion(Motion.standard, value: job.dataSourceFileName)
             }
+            .revealOnAppear(order: 0)
 
-            // Sheet selection card
             ConfigCard {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        CardLabel(title: "Sheet Selection", systemImage: "rectangle.split.3x1")
+                        CardLabel(title: "Sheet", systemImage: "rectangle.split.3x1")
                         Spacer()
                         Button {
                             loadSheetNames()
                         } label: {
-                            if isLoadingSheets {
-                                HStack(spacing: 6) {
-                                    ProgressView().controlSize(.mini)
-                                    Text("Loading…")
-                                }
-                            } else {
-                                Label("Load Sheets", systemImage: "arrow.clockwise")
-                            }
+                            Label(isLoadingSheets ? "Loading…" : "Reload Sheets", systemImage: "arrow.clockwise")
+                                .symbolEffect(.rotate, isActive: isLoadingSheets)
                         }
-                        .font(.callout)
                         .disabled(job.dataSourceBookmarkData == nil || isLoadingSheets)
                     }
 
                     if job.availableSheets.isEmpty {
-                        HStack(spacing: 8) {
-                            Image(systemName: "rectangle.split.3x1")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.tertiary)
-                            Text(job.dataSourceBookmarkData == nil
-                                ? "Select a spreadsheet first."
-                                : "Click \"Load Sheets\" to discover available sheets.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
+                        Label(
+                            job.dataSourceBookmarkData == nil ? "Choose a spreadsheet first." : "Loading the workbook’s sheets…",
+                            systemImage: "rectangle.split.3x1"
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
                     } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Select a sheet to merge:")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                            sheetSelector
-                        }
+                        sheetSelector
                     }
                 }
+                .motion(Motion.standard, value: job.availableSheets)
             }
+            .revealOnAppear(order: 1)
 
-            // Preview card
             if !previewData.headers.isEmpty {
                 ConfigCard {
                     VStack(alignment: .leading, spacing: 12) {
@@ -98,33 +87,29 @@ struct DataSourceConfigView: View {
                             CardLabel(title: "Data Preview", systemImage: "eye")
                             Spacer()
                             if isLoadingPreview {
-                                ProgressView().controlSize(.mini)
+                                ProgressView().controlSize(.small)
                             }
-                            Text("\(previewData.headers.count) columns · \(previewData.rows.count) rows shown")
+                            Text("\(previewData.headers.count) columns · first \(previewData.rows.count) rows")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
                         }
                         DataPreviewTable(headers: previewData.headers, rows: previewData.rows)
                     }
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if let sheetName = job.selectedSheetName {
                 ConfigCard {
-                    HStack(spacing: 10) {
-                        if isLoadingPreview {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        }
-                        Text(isLoadingPreview ? "Loading preview for \"\(sheetName)\"…" : "Sheet \"\(sheetName)\" selected.")
+                    HStack(spacing: Metrics.compact) {
+                        ProgressView().controlSize(.small)
+                        Text("Loading “\(sheetName)”…")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .transition(.opacity)
             }
-
-            Spacer()
         }
+        .motion(Motion.standard, value: previewData)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fileImporter(
             isPresented: $showingImporter,
@@ -135,6 +120,14 @@ struct DataSourceConfigView: View {
         }
         .dropDestination(for: URL.self) { urls, _ in
             handleDrop(urls)
+        }
+        .onChange(of: job.selectedSheetName) { _, newValue in
+            guard let newValue else {
+                previewData = SheetData(headers: [], rows: [])
+                job.availableColumns = []
+                return
+            }
+            loadPreview(sheetName: newValue, matchesFields: autoMatchFields)
         }
         .task {
             // Show the selected sheet's preview again when returning to this step.
@@ -148,40 +141,37 @@ struct DataSourceConfigView: View {
 
     private var sheetSelector: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 8) {
+            HStack(spacing: Metrics.tight) {
                 ForEach(job.availableSheets, id: \.self) { sheet in
                     let isSelected = job.selectedSheetName == sheet
                     Button {
                         job.selectedSheetName = sheet
                     } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "tablecells")
-                                .font(.system(size: 10, weight: .medium))
-                            Text(sheet)
-                                .font(isSelected ? Font.callout.bold() : Font.callout)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(isSelected ? Color.mergeformBlue : Color.primary.opacity(0.06))
-                        )
-                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                        Label(sheet, systemImage: "tablecells")
+                            .font(.callout.weight(isSelected ? .semibold : .regular))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(isSelected ? Color.white : Color.primary)
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(Color.mergeformBlue.gradient)
+                                        .matchedGeometryEffect(id: "selectedSheet", in: sheetSelection)
+                                } else {
+                                    Capsule()
+                                        .fill(Color.primary.opacity(0.06))
+                                }
+                            }
+                            .contentShape(.capsule)
                     }
                     .buttonStyle(.plain)
-                    .animation(.smooth(duration: 0.15), value: isSelected)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
+            .padding(.vertical, 2)
         }
         .scrollIndicators(.hidden)
-        .onChange(of: job.selectedSheetName) { _, newValue in
-            guard let newValue else {
-                previewData = SheetData(headers: [], rows: [])
-                job.availableColumns = []
-                return
-            }
-            loadPreview(sheetName: newValue, matchesFields: autoMatchFields)
-        }
+        .motion(Motion.quick, value: job.selectedSheetName)
     }
 
     // MARK: - Actions

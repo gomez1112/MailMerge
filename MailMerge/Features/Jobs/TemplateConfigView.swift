@@ -13,40 +13,50 @@ struct TemplateConfigView: View {
     @State private var detectedPlaceholders: [String] = []
     @State private var isScanning = false
 
+    /// The template's fields: from the latest scan, or the ones the job already has.
+    private var fieldNames: [String] {
+        if !detectedPlaceholders.isEmpty {
+            return detectedPlaceholders
+        }
+        return job.fieldMappings.map(\.displayName).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: Metrics.section) {
             SectionHeader(
                 title: "Template",
-                subtitle: "Choose a DOCX file with merge placeholders.",
+                subtitle: "Choose a Word document (.docx) with merge placeholders.",
                 systemImageName: "doc.richtext"
             )
 
-            // File selection card
             ConfigCard {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: Metrics.regular) {
                     CardLabel(title: "Document Template", systemImage: "doc.richtext")
                     if let fileName = job.templateFileName {
                         SelectedFileRow(
                             fileName: fileName,
-                            subtitle: "DOCX template",
+                            subtitle: "Word template",
                             systemImageName: "doc.richtext",
-                            color: .accentColor
+                            color: .mergeformBlue
                         ) {
                             showingImporter = true
                         }
+                        .transition(.scale(scale: 0.97).combined(with: .opacity))
                     } else {
                         DropTargetView(
-                            title: "Drop your DOCX template",
-                            subtitle: "or click to browse",
-                            systemImageName: "doc.richtext"
+                            title: "Drop your Word template here",
+                            subtitle: "or click to choose a .docx file",
+                            systemImageName: "doc.badge.plus"
                         ) {
                             showingImporter = true
                         }
+                        .transition(.opacity)
                     }
                 }
+                .motion(Motion.standard, value: job.templateFileName)
             }
+            .revealOnAppear(order: 0)
 
-            // Placeholder scanner card
             ConfigCard {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
@@ -55,67 +65,50 @@ struct TemplateConfigView: View {
                         Button {
                             scanTemplate()
                         } label: {
-                            if isScanning {
-                                HStack(spacing: 6) {
-                                    ProgressView()
-                                        .controlSize(.mini)
-                                    Text("Scanning…")
-                                }
-                            } else {
-                                Label("Scan Template", systemImage: "wand.and.stars")
-                            }
+                            Label(isScanning ? "Scanning…" : "Scan Template", systemImage: "wand.and.stars")
+                                .symbolEffect(.breathe, isActive: isScanning)
                         }
-                        .font(.callout)
                         .disabled(job.templateBookmarkData == nil || isScanning)
                     }
 
-                    if detectedPlaceholders.isEmpty {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.tertiary)
-                            Text("Scan the template to discover merge fields.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
+                    if fieldNames.isEmpty {
+                        Label("Scan the template to find its merge fields.", systemImage: "text.magnifyingglass")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
                     } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("\(detectedPlaceholders.count) field\(detectedPlaceholders.count == 1 ? "" : "s") found")
-                                .font(.caption)
+                        VStack(alignment: .leading, spacing: Metrics.compact) {
+                            Text(fieldNames.count == 1 ? "1 field found" : "\(fieldNames.count) fields found")
+                                .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
-                            FlowLayout(spacing: 6) {
-                                ForEach(detectedPlaceholders.enumerated(), id: \.offset) { _, placeholder in
+                                .contentTransition(.numericText())
+                            FlowLayout(spacing: Metrics.tight) {
+                                ForEach(fieldNames, id: \.self) { placeholder in
                                     PlaceholderTag(text: placeholder)
+                                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                                 }
                             }
                         }
                     }
                 }
+                .motion(Motion.lively, value: fieldNames)
             }
+            .revealOnAppear(order: 1)
 
-            // Supported formats card
             ConfigCard {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: Metrics.compact) {
                     CardLabel(title: "Supported Formats", systemImage: "info.circle")
-                    Text("Use any of these placeholder styles in your DOCX template:")
+                    Text("Write placeholders in your template in any of these styles:")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
+                    HStack(spacing: Metrics.tight) {
                         ForEach(["{{Field}}", "<<Field>>", "${Field}", "[[Field]]"], id: \.self) { format in
-                            Text(format)
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(Color.mergeformBlue)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(Color.mergeformBlue.opacity(0.08))
-                                )
+                            PlaceholderTag(text: format)
                         }
                     }
                 }
             }
+            .revealOnAppear(order: 2)
 
             Spacer()
         }
@@ -190,37 +183,5 @@ struct TemplateConfigView: View {
 
     private func syncMappings(with placeholders: [String]) {
         job.syncFieldMappings(with: placeholders, in: modelContext, autoMatch: autoMatchFields)
-    }
-}
-
-// MARK: - Reusable Selected File Row
-
-struct SelectedFileRow: View {
-    let fileName: String
-    let subtitle: String
-    let systemImageName: String
-    let color: Color
-    let onChangeTap: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            FileIconView(systemImageName: systemImageName, color: color)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(fileName)
-                    .font(.callout)
-                    .bold()
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Change") {
-                onChangeTap()
-            }
-            .font(.callout)
-            .foregroundStyle(Color.mergeformBlue)
-            .buttonStyle(.plain)
-        }
     }
 }
