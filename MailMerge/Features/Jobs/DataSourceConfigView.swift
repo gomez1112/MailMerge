@@ -1,4 +1,6 @@
 import SwiftUI
+import SwiftData
+
 import UniformTypeIdentifiers
 
 struct DataSourceConfigView: View {
@@ -11,6 +13,8 @@ struct DataSourceConfigView: View {
     @State private var previewData = SheetData(headers: [], rows: [])
     @State private var isLoadingPreview = false
     @State private var isLoadingSheets = false
+    @State private var sheetReload = 0
+    @State private var previewReload = 0
     @Namespace private var sheetSelection
 
     var body: some View {
@@ -56,7 +60,7 @@ struct DataSourceConfigView: View {
                         CardLabel(title: "Sheet", systemImage: "rectangle.split.3x1")
                         Spacer()
                         Button {
-                            loadSheetNames()
+                            sheetReload += 1
                         } label: {
                             Label(isLoadingSheets ? "Loading…" : "Reload Sheets", systemImage: "arrow.clockwise")
                                 .symbolEffect(.rotate, isActive: isLoadingSheets)
@@ -121,19 +125,13 @@ struct DataSourceConfigView: View {
         .dropDestination(for: URL.self) { urls, _ in
             handleDrop(urls)
         }
-        .onChange(of: job.selectedSheetName) { _, newValue in
-            guard let newValue else {
-                previewData = SheetData(headers: [], rows: [])
-                job.availableColumns = []
-                return
-            }
-            loadPreview(sheetName: newValue, matchesFields: autoMatchFields)
+        .task(id: SheetRequest(bookmark: job.dataSourceBookmarkData, reload: sheetReload)) {
+            await loadSheetNames()
         }
-        .task {
-            // Show the selected sheet's preview again when returning to this step.
-            if let sheetName = job.selectedSheetName, previewData.headers.isEmpty {
-                loadPreview(sheetName: sheetName, matchesFields: false)
-            }
+        .task(id: PreviewRequest(bookmark: job.dataSourceBookmarkData, sheet: job.selectedSheetName, reload: previewReload)) {
+            previewData = SheetData(headers: [], rows: [])
+            guard let name = job.selectedSheetName else { return }
+            await loadPreview(sheetName: name)
         }
     }
 
@@ -145,7 +143,7 @@ struct DataSourceConfigView: View {
                 ForEach(job.availableSheets, id: \.self) { sheet in
                     let isSelected = job.selectedSheetName == sheet
                     Button {
-                        job.selectedSheetName = sheet
+                        job.selectSheet(sheet)
                     } label: {
                         Label(sheet, systemImage: "tablecells")
                             .font(.callout.weight(isSelected ? .semibold : .regular))
@@ -203,59 +201,58 @@ struct DataSourceConfigView: View {
         job.dataSourceBookmarkData = bookmarkData
         job.dataSourceFileName = url.lastPathComponent
         job.availableSheets = []
-        job.availableColumns = []
-        job.selectedSheetName = nil
+        job.resetSpreadsheet()
         previewData = SheetData(headers: [], rows: [])
         job.modifiedAt = Date()
-        loadSheetNames()
     }
 
-    private func loadSheetNames() {
-        guard let bookmarkData = job.dataSourceBookmarkData else { return }
+    private struct SheetRequest: Equatable {
+        var bookmark: Data?
+        var reload: Int
+    }
+
+    private struct PreviewRequest: Equatable {
+        var bookmark: Data?
+        var sheet: String?
+        var reload: Int
+    }
+
+    private func loadSheetNames() async {
+        guard let bookmark = job.dataSourceBookmarkData else { return }
         isLoadingSheets = true
-        Task {
-            do {
-                let names = try await services.mergeEngine.getSheetNames(bookmarkData: bookmarkData)
-                job.availableSheets = names
-                // A workbook with one sheet has nothing to choose.
-                if job.selectedSheetName == nil, names.count == 1 {
-                    job.selectedSheetName = names[0]
-                }
-            } catch {
-                onError(error, { loadSheetNames() })
-            }
-            isLoadingSheets = false
+        defer { isLoadingSheets = false }
+        do {
+            let names = try await services.mergeEngine.getSheetNames(bookmarkData: bookmark)
+            try Task.checkCancellation()
+            guard !job.isDeleted, job.modelContext != nil, job.dataSourceBookmarkData == bookmark else { return }
+            job.updateAvailableSheets(names)
+            if sheetReload > 0 { previewReload += 1 }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled, !job.isDeleted, job.modelContext != nil else { return }
+            onError(error, { sheetReload += 1 })
         }
     }
 
-    /// Loads a sheet's first rows and columns. `matchesFields` auto-matches unmapped
-    /// fields to the columns, for when the user has just chosen the sheet.
-    private func loadPreview(sheetName: String, matchesFields: Bool) {
-        guard let bookmarkData = job.dataSourceBookmarkData else { return }
+    private func loadPreview(sheetName: String) async {
+        guard let bookmark = job.dataSourceBookmarkData else { return }
         isLoadingPreview = true
-        Task {
-            do {
-                let preview = try await services.mergeEngine.getSheetPreview(
-                    bookmarkData: bookmarkData,
-                    sheetName: sheetName,
-                    rowCount: 5
-                )
-                // Ignore a result for a sheet that's no longer selected.
-                guard job.selectedSheetName == sheetName else { return }
-                previewData = preview
-                job.updateAvailableColumns(preview.headers)
-                if matchesFields {
-                    job.autoMatchUnmappedFields()
-                }
-            } catch {
-                // A sheet that can't be read can't be merged, so don't leave it selected
-                // with the previous sheet's preview and columns.
-                if job.selectedSheetName == sheetName {
-                    job.selectedSheetName = nil
-                }
-                onError(error, { loadPreview(sheetName: sheetName, matchesFields: matchesFields) })
-            }
-            isLoadingPreview = false
+        defer { isLoadingPreview = false }
+        do {
+            let preview = try await services.mergeEngine.getSheetPreview(bookmarkData: bookmark, sheetName: sheetName, rowCount: 5)
+            try Task.checkCancellation()
+            guard !job.isDeleted, job.modelContext != nil,
+                  job.selectedSheetName == sheetName, job.dataSourceBookmarkData == bookmark else { return }
+            previewData = preview
+            job.updateAvailableColumns(preview.headers)
+            if autoMatchFields { job.autoMatchUnmappedFields() }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled, !job.isDeleted, job.modelContext != nil else { return }
+            // A transient read error must preserve the chosen sheet so retry can work.
+            onError(error, { previewReload += 1 })
         }
     }
 

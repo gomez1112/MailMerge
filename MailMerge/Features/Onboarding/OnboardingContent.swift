@@ -59,33 +59,27 @@ extension FeatureItem {
                 iconColor: .mergeformOrange
             ),
             FeatureItem(
-                title: "A Fresh New Look",
-                description: "A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting.",
-                systemImage: "sparkles",
+                title: "Reliable Pro Purchases",
+                description: "Pro unlocks immediately after purchase, with clearer errors and a lifetime purchase option that can retry if you were offline.",
+                systemImage: "checkmark.circle.fill",
                 iconColor: .mergeformBlue
             ),
             FeatureItem(
-                title: "Find Your PDFs Instantly",
-                description: "After a merge, see which folder your PDFs were saved in and open it in Finder with the new files selected.",
-                systemImage: "folder.fill",
-                iconColor: .mergeformOrange
-            ),
-            FeatureItem(
-                title: "Spreadsheets Exactly as in Excel",
-                description: "Dates, percentages, ZIP codes with leading zeros, formulas, and rich text now come through just as Excel shows them.",
+                title: "More Accurate Excel Formatting",
+                description: "Keep phone and ZIP+4 punctuation, original dates, accounting values, and consistent rounding in your documents.",
                 systemImage: "tablecells.fill",
                 iconColor: .green
             ),
             FeatureItem(
-                title: "Drag and Drop",
-                description: "Drop a template, spreadsheet, or output folder right onto its step. Jobs keep working when you move or rename their files.",
-                systemImage: "tray.and.arrow.down.fill",
-                iconColor: .mergeformBlue
+                title: "Your Documents Stay Separate",
+                description: "Each merge keeps its own email attachment. Existing PDFs are preserved, and new files get a numbered name.",
+                systemImage: "folder.fill",
+                iconColor: .mergeformOrange
             ),
             FeatureItem(
-                title: "Stay in Control of Merges",
-                description: "Cancel a merge at any time. Its progress stays put while you move between steps.",
-                systemImage: "stop.circle.fill",
+                title: "Smoother Job Setup",
+                description: "Templates are scanned when you start a job. Column lists update as they load, and switching sheets preserves your manual mappings.",
+                systemImage: "arrow.left.arrow.right",
                 iconColor: .purple
             ),
         ]

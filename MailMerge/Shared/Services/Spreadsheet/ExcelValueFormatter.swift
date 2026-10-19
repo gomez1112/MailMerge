@@ -58,6 +58,18 @@ nonisolated final class ExcelValueFormatter {
         }
     }
 
+    /// The original cell date, separate from its possibly ambiguous displayed text.
+    func dateValue(for cell: XLSXCell, styles: XLSXStyles) -> Date? {
+        if cell.type == "d" { return cell.value.flatMap(Self.parseISO8601) }
+        guard cell.type == nil || cell.type == "n",
+              let raw = cell.value, let number = Double(raw), number.isFinite else { return nil }
+        let id = styles.numberFormatID(forStyleIndex: cell.styleIndex)
+        let code = styles.customFormats[id] ?? Self.builtinFormatCodes[id] ?? ""
+        guard Self.localeDateFormatIDs.contains(id) || id == 22 ||
+              (!code.lowercased().contains("general") && Self.isDateOrTime(Self.elements(of: code))) else { return nil }
+        return date(fromSerial: number)
+    }
+
     /// The display text for a number in the format with the given ID. `formatCode` is the
     /// workbook's definition of that ID, if it has one.
     func string(forNumber number: Double, formatID: Int, formatCode: String?) -> String {
@@ -83,8 +95,13 @@ nonisolated final class ExcelValueFormatter {
         var value = number
         var section = sections[0]
         var showsMinusSign = number < 0
-        if number < 0, sections.count > 1 {
-            // A negative section supplies its own sign, such as parentheses.
+        let hasConditions = sections.prefix(2).contains { Self.condition(in: $0) != nil }
+        if hasConditions {
+            guard let selected = sections.prefix(3).first(where: { section in
+                Self.condition(in: section).map { $0(number) } ?? true
+            }) else { return "" }
+            section = selected
+        } else if number < 0, sections.count > 1 {
             section = sections[1]
             value = -number
             showsMinusSign = false
@@ -92,16 +109,42 @@ nonisolated final class ExcelValueFormatter {
             section = sections[2]
         }
 
-        let trimmed = section.trimmingCharacters(in: .whitespaces).lowercased()
-        if trimmed == "general" || trimmed == "@" {
-            return generalString(value)
-        }
-
         let elements = Self.elements(of: section)
+        // General may be decorated with a color, locale, sign, or literal suffix.
+        for index in elements.indices where index + 7 <= elements.count {
+            let word = elements[index..<(index + 7)].compactMap { element -> String? in
+                if case .code(let c) = element { return String(c) }
+                return nil
+            }.joined()
+            if word.lowercased() == "general" {
+                let prefix = Self.literalText(of: elements[..<index])
+                let suffix = Self.literalText(of: elements[(index + 7)...])
+                return prefix + generalString(value) + suffix
+            }
+        }
+        if section.trimmingCharacters(in: .whitespaces) == "@" { return generalString(value) }
+
         if Self.isDateOrTime(elements) {
             return dateString(forSerial: number, elements: elements)
         }
         return numberString(abs(value), elements: elements, showsMinusSign: showsMinusSign && value != 0)
+    }
+
+    /// Conditions select numeric sections before sign-based section rules apply.
+    private static func condition(in section: String) -> ((Double) -> Bool)? {
+        guard let match = section.firstMatch(of: /\[(<=|>=|<>|=|<|>)(-?[0-9]+(?:\.[0-9]+)?)\]/),
+              let limit = Double(match.2) else { return nil }
+        let operation = String(match.1)
+        return { value in
+            switch operation {
+            case "<=": value <= limit
+            case ">=": value >= limit
+            case "<>": value != limit
+            case "=": value == limit
+            case "<": value < limit
+            default: value > limit
+            }
+        }
     }
 
     // MARK: - Numbers
@@ -127,6 +170,28 @@ nonisolated final class ExcelValueFormatter {
               let lastPlaceholder = elements.lastIndex(where: isCore) else {
             // A format with no digits (such as "Yes" or ;;;) shows only its text.
             return Self.literalText(of: elements[...])
+        }
+
+        let core = elements[first...lastPlaceholder]
+        if core.contains(where: { if case .literal = $0 { return true }; return false }),
+           !core.contains(where: { element in
+               if case .code(let c) = element { return ".,Ee/%".contains(c) }
+               return false
+           }) {
+            // Phone numbers, ZIP+4, and SSNs are digit masks, not decimal formats.
+            var digits = Array(magnitude.rounded(.toNearestOrAwayFromZero).formatted(
+                .number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never).precision(.fractionLength(0))
+            ))
+            var result = ""
+            for element in elements.reversed() {
+                if case .code(let c) = element, placeholders.contains(c) {
+                    if let digit = digits.popLast() { result.insert(digit, at: result.startIndex) }
+                    else if c == "0" { result.insert("0", at: result.startIndex) }
+                } else {
+                    result = Self.literalText(of: [element][...]) + result
+                }
+            }
+            return (showsMinusSign ? "-" : "") + String(digits) + result
         }
 
         // Trailing commas right after the digits scale the value by 1,000 each.
@@ -191,9 +256,11 @@ nonisolated final class ExcelValueFormatter {
 
         let digits: String
         if isFraction {
-            digits = generalString(value)
+            digits = fractionString(value, elements: elements)
         } else if let exponentDigits {
-            digits = scientificString(value, minimumFractionDigits: minimumFractionDigits, maximumFractionDigits: maximumFractionDigits, exponentDigits: exponentDigits)
+            digits = scientificString(value, minimumFractionDigits: minimumFractionDigits, maximumFractionDigits: maximumFractionDigits, exponentDigits: exponentDigits, integerPlaces: max(1, elements[first...last].prefix { $0 != .code(".") && $0 != .code("E") }.filter { if case .code(let c) = $0 { return placeholders.contains(c) }; return false }.count))
+        } else if value == 0, minimumIntegerDigits == 0, minimumFractionDigits == 0 {
+            digits = ""
         } else {
             digits = value.formatted(
                 .number
@@ -210,13 +277,39 @@ nonisolated final class ExcelValueFormatter {
         return ((showsMinusSign ? "-" : "") + prefix + digits + suffix).trimmingCharacters(in: .whitespaces)
     }
 
-    private func scientificString(_ value: Double, minimumFractionDigits: Int, maximumFractionDigits: Int, exponentDigits: Int) -> String {
-        var exponent = value == 0 ? 0 : Int(log10(value).rounded(.down))
+    private func fractionString(_ value: Double, elements: [FormatElement]) -> String {
+        guard let slash = elements.firstIndex(of: .code("/")) else { return generalString(value) }
+        let denominatorPlaces = elements[(slash + 1)...].prefix {
+            if case .code(let c) = $0 { return "0#?".contains(c) }; return false
+        }.count
+        let maximum = Int(pow(10, Double(min(denominatorPlaces, 3)))) - 1
+        guard maximum > 0 else { return generalString(value) }
+        let whole = value.rounded(.down)
+        let fraction = value - whole
+        var bestNumerator = 0.0
+        var bestDenominator = 1
+        var bestError = Double.infinity
+        for denominator in 1...maximum {
+            let numerator = (fraction * Double(denominator)).rounded(.toNearestOrAwayFromZero)
+            let error = abs(fraction - numerator / Double(denominator))
+            if error < bestError {
+                bestNumerator = numerator
+                bestDenominator = denominator
+                bestError = error
+            }
+        }
+        if bestNumerator == 0 { return whole == 0 ? "" : generalString(whole) }
+        if bestNumerator == Double(bestDenominator) { return generalString(whole + 1) }
+        return (whole == 0 ? "" : generalString(whole) + " ") + generalString(bestNumerator) + "/" + bestDenominator.formatted(.number.grouping(.never))
+    }
+
+    private func scientificString(_ value: Double, minimumFractionDigits: Int, maximumFractionDigits: Int, exponentDigits: Int, integerPlaces: Int) -> String {
+        var exponent = value == 0 ? 0 : Int((log10(value) / Double(integerPlaces)).rounded(.down)) * integerPlaces
         var mantissa = value == 0 ? 0 : value / pow(10, Double(exponent))
         let factor = pow(10, Double(maximumFractionDigits))
-        if (mantissa * factor).rounded(.toNearestOrAwayFromZero) / factor >= 10 {
-            mantissa /= 10
-            exponent += 1
+        if (mantissa * factor).rounded(.toNearestOrAwayFromZero) / factor >= pow(10, Double(integerPlaces)) {
+            mantissa /= pow(10, Double(integerPlaces))
+            exponent += integerPlaces
         }
         let mantissaText = mantissa.formatted(
             .number
@@ -452,7 +545,7 @@ nonisolated final class ExcelValueFormatter {
             let symbol = content.dropFirst().prefix { $0 != "-" }
             return symbol.isEmpty ? [] : [.literal(String(symbol))]
         }
-        // Colors such as [Red] and conditions such as [>=100] don't affect the text.
+        // Colors do not change text; conditions are evaluated when selecting a section.
         return []
     }
 
@@ -548,7 +641,13 @@ nonisolated final class ExcelValueFormatter {
             }
             index += 1
         }
-        return tokens
+        // Adjacent quoted literals must share one ICU quote pair: 'a''l' means
+        // a literal apostrophe, whereas 'al' means the two letters.
+        return tokens.reduce(into: []) { result, token in
+            if case .literal(let text) = token, case .literal(let previous) = result.last {
+                result[result.count - 1] = .literal(previous + text)
+            } else { result.append(token) }
+        }
     }
 
     /// Whether the `m` run at `index` means minutes: it follows hours or precedes seconds.
@@ -644,6 +743,10 @@ nonisolated final class ExcelValueFormatter {
         38: "#,##0 ;[Red](#,##0)",
         39: "#,##0.00;(#,##0.00)",
         40: "#,##0.00;[Red](#,##0.00)",
+        41: #"_(* #,##0_);_(* \(#,##0\);_(* "-"_);_(@_)"#,
+        42: #"_("$"* #,##0_);_("$"* \(#,##0\);_("$"* "-"_);_(@_)"#,
+        43: #"_(* #,##0.00_);_(* \(#,##0.00\);_(* "-"??_);_(@_)"#,
+        44: #"_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)"#,
         45: "mm:ss",
         46: "[h]:mm:ss",
         47: "mmss.0",

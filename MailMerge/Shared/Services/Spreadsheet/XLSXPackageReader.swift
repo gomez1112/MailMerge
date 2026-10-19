@@ -358,7 +358,17 @@ nonisolated private final class WorksheetHandler: NSObject, XMLParserDelegate {
             currentRow = XLSXRow()
             nextColumn = 0
         case "c":
-            let column = attributes["r"].flatMap(Self.columnIndex(fromReference:)) ?? nextColumn
+            let column: Int
+            if let reference = attributes["r"] {
+                guard let parsed = Self.columnIndex(fromReference: reference) else {
+                    parser.abortParsing()
+                    return
+                }
+                column = parsed
+            } else {
+                guard nextColumn < 16_384 else { parser.abortParsing(); return }
+                column = nextColumn
+            }
             currentCell = XLSXCell(
                 column: column,
                 type: attributes["t"],
@@ -418,7 +428,11 @@ nonisolated private final class WorksheetHandler: NSObject, XMLParserDelegate {
             case 97...122: uppercase = scalar.value - 32
             default: return sawLetter ? result - 1 : nil
             }
+            // Excel has at most 16,384 columns (XFD). Bound before multiplying,
+            // preventing overflow and huge allocations on malformed references.
+            guard result <= 630 else { return nil }
             result = result * 26 + Int(uppercase - 64)
+            guard result <= 16_384 else { return nil }
             sawLetter = true
         }
         return sawLetter ? result - 1 : nil

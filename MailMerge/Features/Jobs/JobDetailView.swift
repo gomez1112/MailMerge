@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct JobDetailView: View {
+    #if DEBUG
+    @Environment(\.marketingPresentation) private var marketingPresentation
+    #endif
     @Environment(\.services) private var services
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -18,6 +21,11 @@ struct JobDetailView: View {
 
     var body: some View {
         contentWithMetadata
+            #if DEBUG
+            .onChange(of: marketingPresentation?.screen, initial: true) {
+                if let step = marketingPresentation?.screen.step { selectedStep = step }
+            }
+            #endif
             .onAppear(perform: captureSnapshotIfNeeded)
             .onChange(of: job.templateBookmarkData) { _, _ in updateStatus() }
             .onChange(of: job.dataSourceBookmarkData) { _, _ in updateStatus() }
@@ -261,7 +269,7 @@ struct JobDetailView: View {
         }
         do {
             let headers = try await services.mergeEngine.getColumnHeaders(bookmarkData: bookmarkData, sheetName: sheetName)
-            guard !Task.isCancelled, job.selectedSheetName == sheetName else { return }
+            guard !Task.isCancelled, !job.isDeleted, job.modelContext != nil, job.selectedSheetName == sheetName, job.dataSourceBookmarkData == bookmarkData else { return }
             job.updateAvailableColumns(headers)
         } catch is CancellationError {
             return

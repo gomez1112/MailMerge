@@ -21,9 +21,14 @@ struct PaywallView: View {
             .storeButton(.visible, for: .restorePurchases)
             .subscriptionStorePolicyDestination(url: MergeformLinks.termsOfUse, for: .termsOfService)
             .subscriptionStorePolicyDestination(url: MergeformLinks.privacyPolicy, for: .privacyPolicy)
-            // No onInAppPurchaseCompletion: StoreKit's default sends successful purchases
-            // to Transaction.updates, where PurchaseStore unlocks Pro and finishes them,
-            // and shows an alert when a purchase fails. The paywall closes once Pro is on.
+            .onInAppPurchaseCompletion { _, result in
+                do {
+                    if try await purchases.completePurchase(result.get()) { dismiss() }
+                } catch {
+                    purchaseErrorMessage = error.localizedDescription
+                    showingPurchaseError = true
+                }
+            }
 
             lifetimeSection
 

@@ -103,6 +103,7 @@ actor ExcelParserService {
 
         var headers: [String]?
         var dataRows: [[String]] = []
+        var dateRows: [[Date?]] = []
         for row in rows {
             guard let currentHeaders = headers else {
                 let candidate = values(of: row, minimumCount: 0)
@@ -112,12 +113,18 @@ actor ExcelParserService {
                 continue
             }
             if let rowLimit, dataRows.count >= rowLimit { break }
-            dataRows.append(values(of: row, minimumCount: currentHeaders.count))
+            let text = values(of: row, minimumCount: currentHeaders.count)
+            dataRows.append(text)
+            var dates = Array<Date?>(repeating: nil, count: text.count)
+            for cell in row.cells {
+                dates[cell.column] = formatter.dateValue(for: cell, styles: styles)
+            }
+            dateRows.append(dates)
         }
         guard let headers else {
             throw MergeError.emptySheet
         }
-        return SheetData(headers: headers, rows: dataRows)
+        return SheetData(headers: headers, rows: dataRows, dates: dateRows)
     }
 }
 
@@ -329,6 +336,19 @@ final class MergeEngine {
         return await docxParser.extractPlaceholders(from: content)
     }
 
+    /// Scans before inserting/counting a template-based job. An invalid or inaccessible
+    /// template never consumes a free job slot or creates a blocked setup flow.
+    func createJobFromTemplate(bookmark: Data, fileName: String, category: Category?, in context: ModelContext) async throws -> MailMergeJob {
+        let fields = try await analyzeTemplate(bookmarkData: bookmark)
+        try Task.checkCancellation()
+        let job = MailMergeJob.makeNew(name: URL(filePath: fileName).deletingPathExtension().lastPathComponent, category: category)
+        job.templateBookmarkData = bookmark
+        job.templateFileName = fileName
+        context.insert(job)
+        job.syncFieldMappings(with: fields, in: context)
+        return job
+    }
+
     func getSheetNames(bookmarkData: Data) async throws -> [String] {
         try await excelParser.sheetNames(bookmarkData: bookmarkData)
     }
@@ -342,6 +362,8 @@ final class MergeEngine {
     }
 
     func generatePreview(job: MailMergeJob, recordIndex: Int) async throws -> (data: Data, totalRecords: Int) {
+        try Task.checkCancellation()
+        guard job.modelContext != nil, !job.isDeleted else { throw CancellationError() }
         job.refreshStaleBookmarks()
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
@@ -351,10 +373,15 @@ final class MergeEngine {
             throw MergeError.invalidSpreadsheet
         }
 
+        let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
+        let reference = JobReference(job)
         let templateText = try await docxParser.parseTemplate(bookmarkData: templateBookmarkData)
         let headerImage = await docxParser.headerImage(bookmarkData: templateBookmarkData)
         let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
-        let dataRows = filteredRows(sheet.rows)
+        try Task.checkCancellation()
+        guard reference.exists else { throw CancellationError() }
+        let rowIndices = nonemptyRowIndices(sheet.rows)
+        let dataRows = rowIndices.map { sheet.rows[$0] }
         let totalRecords = dataRows.count
         guard totalRecords > 0 else {
             throw MergeError.noRecords
@@ -363,9 +390,8 @@ final class MergeEngine {
 
         let safeIndex = max(0, min(recordIndex, totalRecords - 1))
         let row = dataRows[safeIndex]
-        let mappingSnapshots = job.fieldMappings.map { MappingSnapshot(from: $0) }
         let rowData = Self.rowData(headers: sheet.headers, row: row)
-        let attributedString = Self.merge(template: templateText.value, rowData: rowData, mappings: mappingSnapshots)
+        let attributedString = Self.merge(template: templateText.value, rowData: rowData, mappings: mappings, datesByColumn: sheet.datesByColumn(at: rowIndices[safeIndex]))
         
         let data = try pdfGenerator.generatePDF(
             from: attributedString,
@@ -397,6 +423,9 @@ final class MergeEngine {
             ProcessInfo.processInfo.endActivity(activity)
         }
 
+        try Task.checkCancellation()
+        guard job.modelContext != nil, !job.isDeleted else { throw CancellationError() }
+        let reference = JobReference(job)
         job.refreshStaleBookmarks()
         guard let templateBookmarkData = job.templateBookmarkData else {
             throw MergeError.invalidTemplate
@@ -418,7 +447,9 @@ final class MergeEngine {
 
         do {
             let result = try await mergeRecords(
-                job: job,
+                mappings: job.fieldMappings.map { MappingSnapshot(from: $0) },
+                jobName: job.name,
+                filePattern: job.outputFileNamePattern,
                 templateBookmarkData: templateBookmarkData,
                 dataBookmarkData: dataBookmarkData,
                 sheetName: sheetName,
@@ -427,21 +458,21 @@ final class MergeEngine {
                 progress: progress
             )
             // The job may have been deleted while the merge ran.
-            if !job.isDeleted {
+            if reference.exists {
                 job.status = .completed
                 job.lastRunDate = Date()
                 job.lastRunRecordCount = result.recordCount
             }
             return result
         } catch is CancellationError {
-            if !job.isDeleted {
+            if reference.exists {
                 job.status = previousStatus == .running ? (job.isConfigured ? .configured : .draft) : previousStatus
                 job.lastRunDate = previousRunDate
                 job.lastRunRecordCount = previousRecordCount
             }
             throw CancellationError()
         } catch {
-            if !job.isDeleted {
+            if reference.exists {
                 job.status = .failed
                 job.lastRunDate = Date()
                 job.lastRunRecordCount = nil
@@ -451,7 +482,9 @@ final class MergeEngine {
     }
 
     private func mergeRecords(
-        job: MailMergeJob,
+        mappings: [MappingSnapshot],
+        jobName: String,
+        filePattern: String,
         templateBookmarkData: Data,
         dataBookmarkData: Data,
         sheetName: String,
@@ -465,14 +498,12 @@ final class MergeEngine {
         let sheet = try await excelParser.fullSheet(bookmarkData: dataBookmarkData, sheetName: sheetName)
         try Task.checkCancellation()
 
-        let dataRows = filteredRows(sheet.rows)
+        let rowIndices = nonemptyRowIndices(sheet.rows)
+        let dataRows = rowIndices.map { sheet.rows[$0] }
         let totalRecords = dataRows.count
         guard totalRecords > 0 else { throw MergeError.noRecords }
         progress(MergeProgress(completed: 0, total: totalRecords))
 
-        let mappings = job.fieldMappings.map { MappingSnapshot(from: $0) }
-        let jobName = job.name
-        let filePattern = job.outputFileNamePattern
         let page = Self.pageSetup(for: templateText)
         let layout = pdfGenerator.layout(pageSize: page.size, margins: page.margins, headerImage: headerImage)
         var pacer = InterfacePacer()
@@ -484,7 +515,7 @@ final class MergeEngine {
             let document = PDFDocument()
             for (index, row) in dataRows.enumerated() {
                 try Task.checkCancellation()
-                let text = Self.merge(template: templateText.value, rowData: Self.rowData(headers: sheet.headers, row: row), mappings: mappings)
+                let text = Self.merge(template: templateText.value, rowData: Self.rowData(headers: sheet.headers, row: row), mappings: mappings, datesByColumn: sheet.datesByColumn(at: rowIndices[index]))
                 pdfGenerator.appendPages(of: text, to: document, layout: layout)
                 progress(MergeProgress(completed: index + 1, total: totalRecords))
                 try await pacer.letInterfaceUpdate()
@@ -493,11 +524,10 @@ final class MergeEngine {
             guard let data = document.dataRepresentation() else {
                 throw MergeError.pdfGenerationFailed
             }
-            let fileURL = outputFolderURL.appending(path: Self.combinedFileName(jobName: jobName))
-            try data.write(to: fileURL)
+            let fileURL = try Self.writeNewPDF(data, named: Self.combinedFileName(jobName: jobName), in: outputFolderURL)
             // Mail reads the attachment after the merge gives up access to the output
             // folder, so attach a copy from the app's temporary folder.
-            let attachmentURL = FileManager.default.temporaryDirectory.appending(path: fileURL.lastPathComponent)
+            let attachmentURL = try Self.attachmentDirectory().appending(path: fileURL.lastPathComponent)
             try data.write(to: attachmentURL)
             return MergeResult(
                 savedFileNames: [fileURL.lastPathComponent],
@@ -514,7 +544,7 @@ final class MergeEngine {
         for (index, row) in dataRows.enumerated() {
             try Task.checkCancellation()
             let rowData = Self.rowData(headers: sheet.headers, row: row)
-            let text = Self.merge(template: templateText.value, rowData: rowData, mappings: mappings)
+            let text = Self.merge(template: templateText.value, rowData: rowData, mappings: mappings, datesByColumn: sheet.datesByColumn(at: rowIndices[index]))
             let document = PDFDocument()
             pdfGenerator.appendPages(of: text, to: document, layout: layout)
             guard let data = document.dataRepresentation() else {
@@ -526,8 +556,7 @@ final class MergeEngine {
                 rowData: rowData,
                 usedNames: &usedFileNames
             )
-            let fileURL = outputFolderURL.appending(path: fileName)
-            try data.write(to: fileURL)
+            let fileURL = try Self.writeNewPDF(data, named: fileName, in: outputFolderURL)
             outputFiles.append(fileURL)
             progress(MergeProgress(completed: index + 1, total: totalRecords))
             try await pacer.letInterfaceUpdate()
@@ -553,7 +582,8 @@ final class MergeEngine {
     static func merge(
         template: NSAttributedString,
         rowData: [String: String],
-        mappings: [MappingSnapshot]
+        mappings: [MappingSnapshot],
+        datesByColumn: [String: Date] = [:]
     ) -> NSAttributedString {
         var mappingsByField: [String: MappingSnapshot] = [:]
         for mapping in mappings {
@@ -568,7 +598,7 @@ final class MergeEngine {
         for occurrence in TemplatePlaceholders.occurrences(in: template.string).reversed() {
             var replacement = ""
             if let mapping = mappingsByField[occurrence.name], let columnName = mapping.columnName {
-                replacement = mapping.transformation.apply(to: rowData[columnName] ?? "", formatString: mapping.formatString)
+                replacement = mapping.transformation.apply(to: rowData[columnName] ?? "", formatString: mapping.formatString, dateValue: datesByColumn[columnName])
             }
             let attributes = output.attributes(at: occurrence.range.location, effectiveRange: nil)
             output.replaceCharacters(in: occurrence.range, with: NSAttributedString(string: replacement, attributes: attributes))
@@ -606,9 +636,9 @@ final class MergeEngine {
         return data
     }
 
-    private func filteredRows(_ rows: [[String]]) -> [[String]] {
-        rows.filter { row in
-            row.contains { !($0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+    private func nonemptyRowIndices(_ rows: [[String]]) -> [Int] {
+        rows.indices.filter { index in
+            rows[index].contains { !($0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
         }
     }
 
@@ -702,13 +732,38 @@ final class MergeEngine {
         return shortened
     }
 
+    /// Every run gets its own directory, so an older completion card always attaches
+    /// that run's documents even after another job with the same name has run.
+    private static func attachmentDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "MergeformAttachments", directoryHint: .isDirectory)
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    /// Never replaces an existing document. The exclusive write also protects against
+    /// another window or process creating the same name after the directory was read.
+    private static func writeNewPDF(_ data: Data, named name: String, in folder: URL) throws -> URL {
+        let base = String(name.dropLast(4))
+        var suffix = 1
+        while true {
+            try Task.checkCancellation()
+            let candidate = suffix == 1 ? name : "\(base) \(suffix).pdf"
+            let url = folder.appending(path: candidate)
+            do {
+                try data.write(to: url, options: .withoutOverwriting)
+                return url
+            } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                suffix += 1
+            }
+        }
+    }
+
     private func createZipAttachment(files: [URL], jobName: String) throws -> URL? {
         guard !files.isEmpty else { return nil }
         let zipName = Self.combinedFileName(jobName: jobName).dropLast(4).appending(".zip")
-        let zipURL = FileManager.default.temporaryDirectory.appending(path: zipName)
-        if FileManager.default.fileExists(atPath: zipURL.path) {
-            try? FileManager.default.removeItem(at: zipURL)
-        }
+        let zipURL = try Self.attachmentDirectory().appending(path: zipName)
         let archive = try ZIPArchiveWriter(url: zipURL)
         for file in files {
             try archive.addEntry(path: file.lastPathComponent, contents: try Data(contentsOf: file))
@@ -876,5 +931,27 @@ enum SecurityScopedAccess {
             if didStartAccessing { url.stopAccessingSecurityScopedResource() }
         }
         return try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+}
+
+/// A saved deletion can detach a SwiftData model and reset isDeleted. Query by the
+/// captured ID before touching it after any suspension; never inspect its stale data.
+private struct JobReference {
+    var context: ModelContext?
+    var id: UUID
+    private var job: MailMergeJob
+
+    init(_ job: MailMergeJob) {
+        self.job = job
+        context = job.modelContext
+        id = job.id
+    }
+
+    var exists: Bool {
+        guard let context else { return !job.isDeleted }
+        let id = id
+        var request = FetchDescriptor<MailMergeJob>(predicate: #Predicate { $0.id == id })
+        request.fetchLimit = 1
+        return (try? context.fetch(request).first) != nil
     }
 }

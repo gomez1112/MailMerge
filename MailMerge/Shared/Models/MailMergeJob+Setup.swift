@@ -107,6 +107,15 @@ extension MailMergeJob {
         }
     }
 
+    /// Reconciles renamed/deleted sheets after reloading the workbook.
+    func updateAvailableSheets(_ names: [String]) {
+        availableSheets = names
+        if let selectedSheetName, !names.contains(selectedSheetName) {
+            selectSheet(nil)
+        }
+        if selectedSheetName == nil, names.count == 1 { selectSheet(names[0]) }
+    }
+
     /// Records the spreadsheet columns fields can be mapped to, and clears mappings to
     /// columns the sheet no longer has, such as after a header was renamed.
     func updateAvailableColumns(_ headers: [String]) {

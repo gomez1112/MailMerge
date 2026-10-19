@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import Observation
 
 @Model
 final class MailMergeJob {
@@ -13,7 +14,34 @@ final class MailMergeJob {
     var dataSourceFileName: String?
     var selectedSheetName: String?
     var availableSheets: [String]
-    @Transient var availableColumns: [String] = []
+    @Transient private var runtime = JobRuntimeState()
+    var availableColumns: [String] {
+        get { runtime.columns }
+        set { runtime.columns = newValue }
+    }
+
+    /// Saves manual assignments while another sheet is inspected during this session.
+    func selectSheet(_ sheet: String?) {
+        if let current = selectedSheetName {
+            runtime.assignments[current] = fieldMappings.map { ColumnAssignment(mapping: $0) }
+        }
+        guard selectedSheetName != sheet else { return }
+        selectedSheetName = sheet
+        availableColumns = []
+        let saved = sheet.flatMap { runtime.assignments[$0] } ?? []
+        for mapping in fieldMappings {
+            let assignment = saved.first { $0.field == mapping.placeholderText }
+            mapping.columnName = assignment?.column
+            mapping.isAutoMatched = assignment?.isAutoMatched ?? false
+            mapping.matchConfidence = assignment?.confidence ?? 0
+        }
+    }
+
+    func resetSpreadsheet() {
+        runtime.assignments = [:]
+        selectedSheetName = nil
+        availableColumns = []
+    }
     var combineIntoSinglePDF: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \FieldMapping.job)
     var fieldMappings: [FieldMapping]
@@ -57,7 +85,6 @@ final class MailMergeJob {
         self.dataSourceFileName = dataSourceFileName
         self.selectedSheetName = selectedSheetName
         self.availableSheets = availableSheets
-        self.availableColumns = availableColumns
         self.combineIntoSinglePDF = combineIntoSinglePDF
         self.fieldMappings = fieldMappings
         self.outputFolderBookmarkData = outputFolderBookmarkData
@@ -67,6 +94,7 @@ final class MailMergeJob {
         self.lastRunDate = lastRunDate
         self.lastRunRecordCount = lastRunRecordCount
         self.category = category
+        self.availableColumns = availableColumns
     }
 
     /// Every setup step is complete and the job can run.
@@ -100,6 +128,28 @@ final class MailMergeJob {
         if hasFieldMappings { score += 1 }
         if outputFolderBookmarkData != nil { score += 1 }
         return score / total
+    }
+}
+
+/// Transient SwiftData properties don't publish changes. Nested Observation state does,
+/// without adding columns or changing the on-disk V3 schema.
+@Observable
+nonisolated private final class JobRuntimeState {
+    var columns: [String] = []
+    var assignments: [String: [ColumnAssignment]] = [:]
+}
+
+nonisolated private struct ColumnAssignment {
+    var field: String
+    var column: String?
+    var isAutoMatched: Bool
+    var confidence: Double
+
+    init(mapping: FieldMapping) {
+        field = mapping.placeholderText
+        column = mapping.columnName
+        isAutoMatched = mapping.isAutoMatched
+        confidence = mapping.matchConfidence
     }
 }
 
@@ -250,7 +300,7 @@ enum FieldTransformation: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    func apply(to value: String, formatString: String?) -> String {
+    func apply(to value: String, formatString: String?, dateValue: Date? = nil) -> String {
         switch self {
         case .none:
             return value
@@ -263,7 +313,7 @@ enum FieldTransformation: String, Codable, CaseIterable, Identifiable {
         case .trim:
             return value.trimmingCharacters(in: .whitespacesAndNewlines)
         case .dateFormat:
-            guard let formatString, !formatString.isEmpty, let date = DateParser.parse(value) else { return value }
+            guard let formatString, !formatString.isEmpty, let date = dateValue ?? DateParser.parse(value) else { return value }
             // The pattern is user-entered at runtime, which Date.FormatStyle can't take.
             let formatter = DateFormatter()
             formatter.timeZone = .gmt
@@ -274,14 +324,16 @@ enum FieldTransformation: String, Codable, CaseIterable, Identifiable {
             // A user-entered ICU pattern like "#,##0.00" needs NumberFormatter.
             let formatter = NumberFormatter()
             formatter.positiveFormat = formatString
-            return formatter.string(from: NSNumber(value: number)) ?? value
+            formatter.roundingMode = .halfUp
+            return formatter.string(from: NSDecimalNumber(string: String(number))) ?? value
         case .currencyFormat:
             guard let number = Self.parseNumber(value) else { return value }
             let requestedCode = formatString?.trimmingCharacters(in: .whitespaces).uppercased()
             let code = requestedCode.flatMap { $0.count == 3 && $0.allSatisfy(\.isLetter) ? $0 : nil }
                 ?? Locale.current.currency?.identifier
                 ?? "USD"
-            return number.formatted(.currency(code: code))
+            guard let decimal = Decimal(string: String(number)) else { return value }
+            return decimal.formatted(.currency(code: code).rounded(rule: .toNearestOrAwayFromZero))
         }
     }
 
@@ -344,6 +396,18 @@ enum MergeError: LocalizedError {
 struct SheetData: Equatable {
     let headers: [String]
     let rows: [[String]]
+    /// Original dates retain the century and calendar order lost in display text.
+    var dates: [[Date?]] = []
+
+    func datesByColumn(at index: Int) -> [String: Date] {
+        guard dates.indices.contains(index) else { return [:] }
+        var result: [String: Date] = [:]
+        for (column, date) in dates[index].enumerated() where headers.indices.contains(column) {
+            let key = headers[column].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !key.isEmpty, result[key] == nil { result[key] = date }
+        }
+        return result
+    }
 }
 
 struct MergeResult {

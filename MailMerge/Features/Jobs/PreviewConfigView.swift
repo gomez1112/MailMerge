@@ -2,11 +2,15 @@ import SwiftUI
 import AppKit
 
 struct PreviewConfigView: View {
+    #if DEBUG
+    @Environment(\.marketingPresentation) private var marketingPresentation
+    #endif
     @Environment(\.services) private var services
     @Environment(MergeRunStore.self) private var mergeRuns
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable var job: MailMergeJob
 
+    @State private var previewRequest: PreviewRequest?
     @State private var previewData: Data?
     @State private var isGenerating = false
     @State private var currentRecordIndex = 0
@@ -81,6 +85,12 @@ struct PreviewConfigView: View {
             .revealOnAppear(order: 3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        #if DEBUG
+        .task(id: marketingPresentation?.screen) {
+            if marketingPresentation?.screen == .run { generatePreview() }
+        }
+        #endif
+        .task(id: previewRequest) { await performPreviewRequest() }
         .alert("Preview Error", isPresented: $showingErrorAlert) {
             Button("OK") { }
         } message: {
@@ -368,25 +378,33 @@ struct PreviewConfigView: View {
         loadPreview(at: currentRecordIndex)
     }
 
+    private struct PreviewRequest: Equatable {
+        var id = UUID()
+        var recordIndex: Int
+    }
+
     private func loadPreview(at recordIndex: Int) {
-        let targetIndex = max(recordIndex, 0)
         isGenerating = true
-        Task {
-            do {
-                let result = try await services.mergeEngine.generatePreview(job: job, recordIndex: targetIndex)
-                await MainActor.run {
-                    previewData = result.data
-                    totalRecordCount = result.totalRecords
-                    currentRecordIndex = min(max(targetIndex, 0), max(result.totalRecords - 1, 0))
-                    isGenerating = false
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showingErrorAlert = true
-                    isGenerating = false
-                }
-            }
+        previewRequest = PreviewRequest(recordIndex: max(recordIndex, 0))
+    }
+
+    /// Owned by .task(id:), so leaving the step or deleting the job cancels its work.
+    private func performPreviewRequest() async {
+        guard let previewRequest else { return }
+        isGenerating = true
+        defer { isGenerating = false }
+        do {
+            let result = try await services.mergeEngine.generatePreview(job: job, recordIndex: previewRequest.recordIndex)
+            try Task.checkCancellation()
+            previewData = result.data
+            totalRecordCount = result.totalRecords
+            currentRecordIndex = min(previewRequest.recordIndex, max(result.totalRecords - 1, 0))
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            errorMessage = error.localizedDescription
+            showingErrorAlert = true
         }
     }
 

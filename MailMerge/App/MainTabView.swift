@@ -5,11 +5,23 @@ import KickstartSignal
 import AppKit
 import StoreKit
 
+#if DEBUG
+extension EnvironmentValues {
+    /// Offline sample requests for the opt-in marketing capture harness.
+    @Entry var usesDemoFeatureRequests = false
+}
+#endif
+
 struct MainTabView: View {
+    #if DEBUG
+    @Environment(\.usesDemoFeatureRequests) private var usesDemoFeatureRequests
+    @Environment(\.marketingPresentation) private var marketingPresentation
+    #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var jobs: [MailMergeJob]
     @State private var selection: SidebarDestination = .jobs
     @State private var pendingJobID: UUID?
+    @State private var visitedDestinations: Set<SidebarDestination> = [.jobs]
     @State private var windowCommands = WindowCommandRouter()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -19,11 +31,22 @@ struct MainTabView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
         } detail: {
             detailContent
-                .id(selection)
-                .transition(.opacity)
         }
+        .onChange(of: selection, initial: true) { visitedDestinations.insert(selection) }
         .navigationSplitViewStyle(.balanced)
         .symbolEffectsRemoved(reduceMotion)
+        #if DEBUG
+        .onChange(of: marketingPresentation?.screen, initial: true) {
+            guard let marketingPresentation else { return }
+            switch marketingPresentation.screen {
+            case .templates: selection = .templates
+            case .requests: selection = .featureRequests
+            default:
+                selection = .jobs
+                if marketingPresentation.screen.step != nil { pendingJobID = marketingPresentation.jobID }
+            }
+        }
+        #endif
         .focusedSceneValue(\.windowCommands, FocusedWindowCommands(router: windowCommands))
         .onChange(of: windowCommands.isNewJobRequested) { _, isRequested in
             // New jobs are created from the Jobs list, so show it.
@@ -64,25 +87,42 @@ struct MainTabView: View {
         }
     }
 
-    @ViewBuilder
+    /// Each tab owns its navigation stack. Keep visited stacks mounted so SwiftUI
+    /// never tries to apply a job's UUID path to the template or SDK board stack.
     private var detailContent: some View {
-        switch selection {
-        case .jobs:
-            ContentView(pendingJobID: $pendingJobID, newJobRequested: $windowCommands.isNewJobRequested)
-        case .templates:
-            TemplateLibraryView { jobID in
-                pendingJobID = jobID
-                withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
-                    selection = .jobs
+        ZStack {
+            ContentView(pendingJobID: $pendingJobID, newJobRequested: $windowCommands.isNewJobRequested, isActive: selection == .jobs)
+                .libraryTab(isActive: selection == .jobs)
+            if visitedDestinations.contains(.templates) {
+                TemplateLibraryView { jobID in
+                    pendingJobID = jobID
+                    withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
+                        selection = .jobs
+                    }
                 }
+                .libraryTab(isActive: selection == .templates)
             }
-        case .featureRequests:
-            // The board pushes its request details and suggestion form onto this stack.
-            NavigationStack {
-                SignalBoardView(apiKey: "ks_live_oiOXxPHxxpQT2eV42Z-LAVU4oTCahb_AUiLTpQ7vcuU")
+            if visitedDestinations.contains(.featureRequests) {
+                featureRequests
+                    .libraryTab(isActive: selection == .featureRequests)
             }
         }
     }
+
+    private var featureRequests: some View {
+        NavigationStack {
+            #if DEBUG
+            if usesDemoFeatureRequests {
+                SignalBoardView.demo()
+            } else {
+                LiveFeatureRequestsBoard()
+            }
+            #else
+            LiveFeatureRequestsBoard()
+            #endif
+        }
+    }
+
 }
 
 // MARK: - Sidebar Brand Header
@@ -118,6 +158,7 @@ private enum SidebarDestination: Hashable {
 // MARK: - Template Library View
 
 private struct TemplateLibraryView: View {
+    @Environment(\.services) private var services
     @Environment(\.modelContext) private var modelContext
     @Environment(PurchaseStore.self) private var purchases
     @Query(sort: \MailMergeJob.modifiedAt, order: .reverse) private var jobs: [MailMergeJob]
@@ -159,7 +200,7 @@ private struct TemplateLibraryView: View {
             .navigationSubtitle(templateItems.count == 1 ? "1 template" : "\(templateItems.count) templates")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Import Template", systemImage: "square.and.arrow.down") {
+                    Button("New Job from Template", systemImage: "square.and.arrow.down") {
                         showingImporter = true
                     }
                     .help("Import a DOCX template")
@@ -232,9 +273,9 @@ private struct TemplateLibraryView: View {
         ContentUnavailableView {
             Label("No Templates Yet", systemImage: "richtext.page")
         } description: {
-            Text("Import a DOCX template, or use one in a job, to see it here.")
+            Text("Start a job from a DOCX template to keep it here for reuse.")
         } actions: {
-            Button("Import Template") { showingImporter = true }
+            Button("New Job from Template") { showingImporter = true }
                 .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -260,12 +301,7 @@ private struct TemplateLibraryView: View {
             return nil
         }
         let bookmarkData = try SecurityScopedAccess.makeBookmark(for: url)
-        let category = uncategorizedCategory
-        let job = MailMergeJob.makeNew(name: "New Mergeform", category: category)
-        job.templateBookmarkData = bookmarkData
-        job.templateFileName = url.lastPathComponent
-        job.modifiedAt = Date()
-        modelContext.insert(job)
+        let job = try await services.mergeEngine.createJobFromTemplate(bookmark: bookmarkData, fileName: url.lastPathComponent, category: uncategorizedCategory, in: modelContext)
         recordJobCreation()
         return job.id
     }
@@ -275,14 +311,14 @@ private struct TemplateLibraryView: View {
             showLimitAlertAndPaywall()
             return nil
         }
-        let category = uncategorizedCategory
-        let job = MailMergeJob.makeNew(name: "New Mergeform", category: category)
-        job.templateBookmarkData = item.bookmarkData
-        job.templateFileName = item.fileName
-        job.modifiedAt = Date()
-        modelContext.insert(job)
-        recordJobCreation()
-        return job.id
+        do {
+            let job = try await services.mergeEngine.createJobFromTemplate(bookmark: item.bookmarkData, fileName: item.fileName, category: uncategorizedCategory, in: modelContext)
+            recordJobCreation()
+            return job.id
+        } catch {
+            importErrorMessage = error.localizedDescription
+            return nil
+        }
     }
 
     private func revealTemplate(_ item: TemplateLibraryItem) {
@@ -390,3 +426,20 @@ private struct DocumentThumbnail: View {
 
 // MARK: - Data Models
 
+
+/// One live integration call, shared by production and ordinary Debug launches.
+private struct LiveFeatureRequestsBoard: View {
+    var body: some View {
+                SignalBoardView(apiKey: "ks_live_oiOXxPHxxpQT2eV42Z-LAVU4oTCahb_AUiLTpQ7vcuU")
+    }
+}
+
+private extension View {
+    func libraryTab(isActive: Bool) -> some View {
+        opacity(isActive ? 1 : 0)
+            .zIndex(isActive ? 1 : 0)
+            .allowsHitTesting(isActive)
+            .disabled(!isActive)
+            .accessibilityHidden(!isActive)
+    }
+}

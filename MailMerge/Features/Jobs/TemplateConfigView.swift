@@ -161,18 +161,18 @@ struct TemplateConfigView: View {
         guard let bookmarkData = job.templateBookmarkData else { return }
         isScanning = true
         Task {
+            defer { isScanning = false }
             do {
                 let placeholders = try await services.mergeEngine.analyzeTemplate(bookmarkData: bookmarkData)
-                await MainActor.run {
-                    detectedPlaceholders = placeholders
-                    syncMappings(with: placeholders)
-                    isScanning = false
-                }
+                guard !Task.isCancelled, !job.isDeleted, job.modelContext != nil,
+                      job.templateBookmarkData == bookmarkData else { return }
+                detectedPlaceholders = placeholders
+                syncMappings(with: placeholders)
+            } catch is CancellationError {
+                return
             } catch {
-                await MainActor.run {
-                    onError(error, { scanTemplate() })
-                    isScanning = false
-                }
+                guard !Task.isCancelled, !job.isDeleted, job.modelContext != nil else { return }
+                onError(error, { scanTemplate() })
             }
         }
     }

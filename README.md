@@ -88,7 +88,7 @@ Press **⌘R** or click the Run button.
 |---|---|
 | UI | SwiftUI |
 | Persistence | SwiftData |
-| Payments | StoreKit 2 (FlexStore) |
+| Payments | StoreKit 2 (native PurchaseStore) |
 | Excel parsing | Built-in streaming reader (`XLSXPackageReader`) over ZIPFoundation |
 | PDF rendering | PDFKit / UIGraphicsPDFRenderer |
 | ZIP output | ZIPFoundation |

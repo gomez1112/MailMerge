@@ -32,6 +32,7 @@ extension FocusedValues {
 
 @main
 struct MailMergeApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var loadError: Error?
     @State private var mergeRuns = MergeRunStore()
     @State private var purchases = PurchaseStore()
@@ -39,8 +40,11 @@ struct MailMergeApp: App {
 
     init() {
         let schema = Schema(versionedSchema: MailMergeSchemaV3.self)
-        let storeURL = Self.storeURL()
-        let configuration = ModelConfiguration(schema: schema, url: storeURL)
+        // Hosted tests must not open the user's database or start a second StoreKit
+        // listener that competes with the test's isolated store.
+        let configuration = Self.isTesting
+            ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            : ModelConfiguration(schema: schema, url: Self.storeURL())
         do {
             let modelContainer = try ModelContainer(
                 for: schema,
@@ -81,7 +85,7 @@ struct MailMergeApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             if let container {
                 OnboardingWrapper(
                     appName: "Mergeform",
@@ -96,7 +100,11 @@ struct MailMergeApp: App {
                         .environment(\.services, ServiceContainer.shared)
                         .environment(purchases)
                         .frame(minWidth: 1200, idealWidth: 1400, maxWidth: 1800, minHeight: 740, idealHeight: 840)
-                        .task { purchases.start() }
+                        .task(id: scenePhase) {
+                            guard !Self.isTesting, scenePhase == .active else { return }
+                            await purchases.waitUntilChecked()
+                            await purchases.refresh()
+                        }
                 }
             } else {
                 ContentUnavailableView {
@@ -122,8 +130,16 @@ struct MailMergeApp: App {
         Settings {
             AppSettingsView()
                 .environment(purchases)
-                .task { purchases.start() }
+                .task(id: scenePhase) {
+                            guard !Self.isTesting, scenePhase == .active else { return }
+                            await purchases.waitUntilChecked()
+                            await purchases.refresh()
+                        }
         }
+    }
+
+    private static var isTesting: Bool {
+        NSClassFromString("XCTestCase") != nil || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     private static func storeURL() -> URL {
@@ -139,11 +155,15 @@ struct MailMergeApp: App {
 // MARK: - Commands
 
 struct MailMergeCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
     @FocusedValue(\.jobCommands) private var jobCommands: FocusedJobCommands?
     @FocusedValue(\.windowCommands) private var windowCommands: FocusedWindowCommands?
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            Button("New Window") { openWindow(id: "main") }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+
             Button("New Job") {
                 windowCommands?.newJob()
             }

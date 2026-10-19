@@ -19,10 +19,18 @@ final class PurchaseStore {
     /// The subscription's renewal state, when the user has or recently had one.
     private(set) var renewal: SubscriptionRenewal?
 
+    @ObservationIgnored private var recordsByProduct: [String: EntitlementRecord] = [:]
+    @ObservationIgnored private var revision = 0
     @ObservationIgnored private var updatesTask: Task<Void, Never>?
     @ObservationIgnored private var initialCheck: Task<Void, Never>?
     @ObservationIgnored private var expirationTask: Task<Void, Never>?
     @ObservationIgnored private let logger = Logger(subsystem: "com.transfinite.MailMerge", category: "Purchases")
+
+    deinit {
+        updatesTask?.cancel()
+        initialCheck?.cancel()
+        expirationTask?.cancel()
+    }
 
     var hasProAccess: Bool {
         if case .pro = access { return true }
@@ -62,15 +70,19 @@ final class PurchaseStore {
 
     /// Checks the user's current purchases again.
     func refresh() async {
+        let startingRevision = revision
         var records: [EntitlementRecord] = []
         for await result in Transaction.currentEntitlements {
             // Unverified transactions don't grant anything.
             guard case .verified(let transaction) = result else { continue }
             records.append(EntitlementRecord(transaction))
         }
-        access = ProAccess.granted(by: records)
+        // An update can arrive while the sequence suspends. Never overwrite it with
+        // the older entitlement snapshot (including StoreKit's propagation delay).
+        guard revision == startingRevision else { return }
+        recordsByProduct = Dictionary(records.map { ($0.productID, $0) }, uniquingKeysWith: { _, new in new })
+        updateAccess()
         renewal = await Self.currentRenewal()
-        scheduleRefresh(atExpirationOf: records)
     }
 
     /// Loads the lifetime product if it hasn't loaded yet, so a failed load at launch
@@ -88,13 +100,19 @@ final class PurchaseStore {
     /// waits for approval; Ask to Buy approvals arrive later through `Transaction.updates`.
     func purchaseLifetime() async throws -> Bool {
         let product = try await loadLifetimeProduct()
-        switch try await product.purchase() {
+        return try await completePurchase(try await product.purchase())
+    }
+
+    /// Handles both StoreKit's subscription view and the lifetime purchase path. Grant
+    /// access before finishing; entitlement queries may lag behind the purchase result.
+    @discardableResult
+    func completePurchase(_ result: Product.PurchaseResult) async throws -> Bool {
+        switch result {
         case .success(let verification):
             guard case .verified(let transaction) = verification else {
                 throw PurchaseError.unverified
             }
-            await transaction.finish()
-            await refresh()
+            await handle(.verified(transaction))
             return true
         case .userCancelled, .pending:
             return false
@@ -132,8 +150,27 @@ final class PurchaseStore {
             logger.error("Ignored an unverified transaction for \(update.unsafePayloadValue.productID)")
             return
         }
+        revision += 1
+        recordsByProduct[transaction.productID] = EntitlementRecord(transaction)
+        updateAccess()
         await transaction.finish()
-        await refresh()
+        renewal = await Self.currentRenewal()
+    }
+
+    private func updateAccess() {
+        let records = Array(recordsByProduct.values)
+        access = ProAccess.granted(by: records)
+        scheduleRefresh(atExpirationOf: records)
+    }
+
+    /// Ends the listeners when their owner goes away (and isolates StoreKit tests).
+    func stop() {
+        updatesTask?.cancel()
+        initialCheck?.cancel()
+        expirationTask?.cancel()
+        updatesTask = nil
+        initialCheck = nil
+        expirationTask = nil
     }
 
     /// `Transaction.updates` doesn't report a subscription simply running out, so check
@@ -204,7 +241,7 @@ nonisolated struct EntitlementRecord: Equatable, Sendable {
     init(_ transaction: Transaction) {
         self.init(
             productID: transaction.productID,
-            isRevoked: transaction.revocationDate != nil,
+            isRevoked: transaction.revocationDate != nil || transaction.isUpgraded,
             expirationDate: transaction.expirationDate
         )
     }

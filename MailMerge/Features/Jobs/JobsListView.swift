@@ -8,7 +8,10 @@ struct ContentView: View {
     @Environment(PurchaseStore.self) private var purchases
     @Environment(MergeRunStore.self) private var mergeRuns
 
-    init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false)) {
+    var isActive: Bool
+
+    init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false), isActive: Bool = true) {
+        self.isActive = isActive
         _pendingJobID = pendingJobID
         _newJobRequested = newJobRequested
     }
@@ -19,7 +22,8 @@ struct ContentView: View {
     /// Set by File > New Job; the list starts creating a job and clears it.
     @Binding private var newJobRequested: Bool
     @SceneStorage("navigationPath") private var navigationPathData: Data = Data()
-    @State private var navigationPath: [UUID] = []
+    @State private var navigationPath = NavigationPath()
+    @State private var displayedJobID: UUID?
     @State private var searchText = ""
     @State private var hasEnsuredDefaults = false
     @State private var showingNewJobSheet = false
@@ -69,6 +73,10 @@ struct ContentView: View {
             .navigationDestination(for: UUID.self) { jobID in
                 if let job = jobs.first(where: { $0.id == jobID }) {
                     JobDetailView(job: job)
+                        .onAppear {
+                            displayedJobID = job.id
+                            persistNavigationPath([job.id])
+                        }
                 } else {
                     ContentUnavailableView {
                         Label("Job Not Found", systemImage: "exclamationmark.triangle")
@@ -79,7 +87,8 @@ struct ContentView: View {
             }
             .onChange(of: pendingJobID) { _, newValue in
                 guard let newValue else { return }
-                navigationPath = [newValue]
+                displayedJobID = newValue
+                navigationPath = NavigationPath([newValue])
                 pendingJobID = nil
             }
             .sheet(item: $categoryEditorTarget) { target in
@@ -141,14 +150,17 @@ struct ContentView: View {
         .onAppear(perform: ensureDefaultCategoriesIfNeeded)
         .onAppear(perform: applyInitialNavigation)
         .onChange(of: navigationPath) { _, newPath in
-            persistNavigationPath(newPath)
+            if newPath.isEmpty {
+                displayedJobID = nil
+                persistNavigationPath([])
+            }
         }
         .onChange(of: newJobRequested, initial: true) { _, isRequested in
             guard isRequested else { return }
             newJobRequested = false
             createJob()
         }
-        .focusedSceneValue(\.jobCommands, focusedJobCommands)
+        .focusedSceneValue(\.jobCommands, isActive ? focusedJobCommands : nil)
         .onChange(of: jobCommandRouter.pendingCommand) { _, command in
             guard let command else { return }
             jobCommandRouter.pendingCommand = nil
@@ -163,7 +175,7 @@ struct ContentView: View {
     }
 
     private var focusedJobID: UUID? {
-        JobNavigation.focusedJobID(path: navigationPath)
+        navigationPath.isEmpty ? nil : displayedJobID
     }
 
     // MARK: - Actions
@@ -172,11 +184,13 @@ struct ContentView: View {
     private func applyInitialNavigation() {
         // An unreadable saved path just means starting at the list.
         let savedPath = (try? JSONDecoder().decode([UUID].self, from: navigationPathData)) ?? []
-        navigationPath = JobNavigation.initialPath(
+        let path = JobNavigation.initialPath(
             pendingJobID: pendingJobID,
             savedPath: savedPath,
             existingJobIDs: Set(jobs.map(\.id))
         )
+        displayedJobID = path.last
+        navigationPath = NavigationPath(path)
         pendingJobID = nil
     }
 
@@ -314,7 +328,8 @@ struct ContentView: View {
             let jobName = newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Mergeform" : newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
             let job = MailMergeJob.makeNew(name: jobName, category: category)
             modelContext.insert(job)
-            navigationPath = [job.id]
+            displayedJobID = job.id
+            navigationPath = NavigationPath([job.id])
             showingNewJobSheet = false
             recordJobCreation()
         }
@@ -323,8 +338,12 @@ struct ContentView: View {
     private func deleteJobs(offsets: IndexSet, in source: [MailMergeJob]) {
         for index in offsets {
             let job = source[index]
+            mergeRuns.cancel(jobID: job.id)
             modelContext.delete(job)
-            navigationPath.removeAll(where: { $0 == job.id })
+            if displayedJobID == job.id {
+                displayedJobID = nil
+                navigationPath = NavigationPath()
+            }
         }
     }
 
@@ -351,7 +370,10 @@ struct ContentView: View {
         // Stop the job's merge so it doesn't keep writing files for a deleted job.
         mergeRuns.cancel(jobID: job.id)
         modelContext.delete(job)
-        navigationPath.removeAll(where: { $0 == job.id })
+        if displayedJobID == job.id {
+            displayedJobID = nil
+            navigationPath = NavigationPath()
+        }
     }
 
     private func ensureDefaultCategoriesIfNeeded() {
