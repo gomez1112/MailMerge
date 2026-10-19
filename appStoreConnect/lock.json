@@ -2,9 +2,6 @@
   "appId": "6759203950",
   "derived": {
     "appAssetLibraryAssets": {
-      "00c00019-2e14-846e-8139-ec78d2f2207e": {
-        "sourceFileChecksum": "c304baa083caf5e78ab3048016731f4c"
-      },
       "30800019-2e14-846e-8025-a57d8381a0a9": {
         "renditionChecksum": "aa919d13f7b1e0febef9db40d83db840"
       },
@@ -1558,14 +1555,33 @@
       "id": "d3cc95bb-1ebf-40e6-be99-27c971367dc5",
       "type": "appStoreVersionLocalizations"
     },
-    "appStoreVersionPlacementGroup:MAC_OS:1.2.1:en-US:APP_PREVIEW:MAC_PROFILE": {
+    "appStoreVersionPlacementGroup:MAC_OS:1.2.1:en-US:APP_SCREENSHOT:MAC_PROFILE": {
       "fields": {
-        "appPreview": [
+        "appScreenshot": [
           {
-            "checksum": "c304baa083caf5e78ab3048016731f4c",
-            "fileName": "01-workflow.mp4",
-            "fileSize": 2147833,
-            "previewFrameTimeCode": "00:00:02:00"
+            "checksum": "f9d87fd9fd4eb81ede168ed4cc91a452",
+            "fileName": "01-jobs.png",
+            "fileSize": 1979739
+          },
+          {
+            "checksum": "edae996852c48daa45ee5f459ed41ccf",
+            "fileName": "02-mapping.png",
+            "fileSize": 1980174
+          },
+          {
+            "checksum": "d8c2705d929b2bbea58a66a96dd75254",
+            "fileName": "03-data.png",
+            "fileSize": 2341937
+          },
+          {
+            "checksum": "8f307c8d1b7b26fc85ba342ded8dfeeb",
+            "fileName": "04-run.png",
+            "fileSize": 2552614
+          },
+          {
+            "checksum": "3f817493cd2d86628ae4573c5a19aeab",
+            "fileName": "05-templates.png",
+            "fileSize": 2270089
           }
         ]
       },
