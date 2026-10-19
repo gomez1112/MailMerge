@@ -12,14 +12,14 @@
       "output": "02-mapping.png",
       "title": "Fields match themselves",
       "highlight": "match themselves",
-      "subtitle": "Auto-Match pairs every template field with the right column."
+      "subtitle": "Match template fields to spreadsheet columns, then fine-tune."
     },
     {
       "capture": "03-data.png",
       "output": "03-data.png",
-      "title": "Every value, just like Excel",
-      "highlight": "just like Excel",
-      "subtitle": "Dates, currency, percentages, and ZIP codes come through exactly right."
+      "title": "Excel formatting, preserved",
+      "highlight": "preserved",
+      "subtitle": "Keep dates, currency, percentages, and leading zeros in your PDFs."
     },
     {
       "capture": "04-run.png",
@@ -35,14 +35,6 @@
       "title": "Templates, ready to reuse",
       "highlight": "ready to reuse",
       "subtitle": "Start a new job from any template you’ve used before."
-    },
-    {
-      "capture": "06-requests.png",
-      "output": "06-requests.png",
-      "badge": "New",
-      "title": "Shape what’s next",
-      "highlight": "what’s next",
-      "subtitle": "Suggest features and vote on ideas, right inside Mergeform."
     }
   ]
 }

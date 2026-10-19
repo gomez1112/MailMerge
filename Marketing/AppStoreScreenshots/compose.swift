@@ -7,8 +7,8 @@
 // Usage: swift compose.swift <slides.json> <captures folder> <output folder>
 //   A slide whose capture is missing gets a labeled placeholder, for layout proofs.
 //
-// The captures are taken by hand (Bitrig can't capture Mac screenshots): a window
-// capture with Command-Shift-4, then Space, holding Option to leave out the shadow.
+// Raw captures come from the opt-in MarketingCaptureTests fixture, or window captures
+// supplied by hand. Keep them in Captures/; only the composed images go in the listing.
 
 import AppKit
 import Foundation

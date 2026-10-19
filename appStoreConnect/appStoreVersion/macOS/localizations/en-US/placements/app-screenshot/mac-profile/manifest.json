@@ -1,22 +1,19 @@
 {
   "placements": [
     {
-      "fileName": "Mac OS-01.png"
+      "fileName": "01-jobs.png"
     },
     {
-      "fileName": "Mac OS-02.png"
+      "fileName": "02-mapping.png"
     },
     {
-      "fileName": "Mac OS-03.png"
+      "fileName": "03-data.png"
     },
     {
-      "fileName": "Mac OS-04.png"
+      "fileName": "04-run.png"
     },
     {
-      "fileName": "MergeformMain.jpg"
-    },
-    {
-      "fileName": "Mergeformfields.jpg"
+      "fileName": "05-templates.png"
     }
   ]
 }

@@ -1,25 +1,22 @@
-Mergeform 1.2 brings a fresh new look, a faster way to find your finished PDFs, and dozens of fixes that make every merge more accurate.
+Mergeform 1.2.1 makes purchases, spreadsheet formatting, and finished documents more reliable.
 
 New
-• A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting
-• After a merge, see which folder your PDFs were saved in and open it in Finder with the new files selected
-• Cancel a merge at any time, and keep its progress while you move between steps
-• Drag and drop templates, spreadsheets, and output folders onto each step
-• Format fields as dates, numbers, or currency, with a live example
-• PDFs use your template’s paper size, margins, and header logo as they appear in Word
-• Mergeform asks before deleting a job (you can turn this off in Settings)
+• Suggest features and vote on ideas from Feature Requests in the sidebar
+• Discover other independent Mac apps in the free plan; Pro remains ad-free
 
 Improved
-• Much better compatibility with real-world Excel workbooks: dates, percentages, ZIP codes with leading zeros, formulas, rich text, and TRUE/FALSE now come through exactly as Excel shows them
-• Smarter field matching that won’t mix up similar names like “Date” and “State”
-• Jobs keep working when you move or rename their template, spreadsheet, or output folder
-• Records that would get the same file name are numbered instead of overwriting each other
-• The relative dates, auto-match, and default file name settings now take effect
-• Lifetime Pro purchases are recognized everywhere in the app
+• Native StoreKit purchases and restoration, with immediate Pro access and clearer errors
+• Jobs started from the template library are named after their template and have their fields scanned automatically
+• Manual field mappings are restored when you switch between sheets
 
 Fixed
-• Adding, renaming, and deleting categories in Manage Categories
-• Job menu commands acting on the wrong job, and Command-Delete deleting a job while you type
-• Changing a job’s template now updates its fields
-• Cancelling a subscription purchase no longer closes the upgrade screen
-• Many smaller fixes throughout the app
+• ZIP+4, phone and Social Security formats retain their punctuation
+• More accurate conditional, accounting, fraction and scientific number formats
+• Date transformations preserve the original Excel date, including its century and day/month order
+• Number and currency transformations round consistently with Excel
+• Column pickers refresh as soon as spreadsheet headers load
+• Spreadsheet reloads handle renamed sheets, and failed previews can be retried
+• Email Output keeps each merge’s attachments separate, even for jobs with the same name
+• Existing PDFs are preserved; new files receive a numbered name
+• Deleting a running job safely stops its merge
+• The File menu can open a new window after the last window is closed

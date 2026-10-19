@@ -5,16 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.1] - 2026-10-18
 
 ### Added
-- Version 1.2.1 (in progress): a Kickstart Exchange cross-promotion banner at the bottom of the Jobs list for free users. Pro customers, including lifetime buyers, never see it.
+- A Kickstart Exchange cross-promotion banner at the bottom of the Jobs list for free users. Pro customers, including lifetime buyers, never see it.
 - Feature Requests in the sidebar: a Kickstart Signal board where people can suggest features, vote, and comment. Submissions stay private until approved in the Signal dashboard. The app doesn't send premium status.
 - The What's New sheet highlights Feature Requests.
 
 ### Changed
 - The app can make outgoing network connections, which Kickstart Exchange and Signal need to load the banner and the feature request board. Incoming connections stay off.
-- The App Store age rating declares advertising.
+- The App Store age rating declares advertising and the feature board’s user posts and comments.
+
+### Fixed
+- Replace FlexStore with an observable native StoreKit purchase store; process verified paywall purchases immediately, retry lifetime product loads, finish transactions, and show purchase errors
+- Hide free-plan content until entitlements are checked and count only free jobs against the lifetime allowance
+- Retain punctuation in Excel ZIP+4, phone, and SSN formats; respect conditional sections and decorated General formats
+- Correct accounting zeros and built-in formats 41–44, fractions, engineering notation, adjacent date literals, and half-up numeric transformations
+- Carry original Excel dates through previews and merges instead of guessing their century or day/month order from display text
+- Make transient column state observable; preserve manual mappings when switching sheets; reconcile renamed sheets and allow preview retries
+- Scan library templates before creating/counting a new job and make the creation action explicit
+- Keep email attachments independent per run and never overwrite existing output PDFs
+- Snapshot merge inputs before suspension and avoid touching SwiftData models after a saved deletion
+- Fix the navigation crash when moving from an open job to another library tab; use a type-erased navigation path compatible with the SDK board's routes
+- Restore the New Window command and isolate hosted tests from the user's database
+- Reject malformed spreadsheet references without overflow or unbounded column allocations
 
 ## [1.2.0] - 2026-10-17
 
@@ -29,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The app icon in the sidebar, paywall, and Settings > About
 
 ### Changed
-- Spreadsheets are read by a built-in tolerant reader that applies Excel's number formats; CoreXLSX was removed and ZIPFoundation is a direct dependency
+- Spreadsheets are read by a built-in tolerant reader that applies Excel's number formats; CoreXLSX and ZIPFoundation were replaced with built-in readers using Apple Compression
 - PDFs use the template's paper size, margins, and header picture size
 - Field auto-matching uses each column once and rejects look-alike names
 - The paywall offers what Pro actually unlocks (unlimited jobs) and uses StoreKit's subscription store
