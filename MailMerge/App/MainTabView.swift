@@ -21,7 +21,6 @@ struct MainTabView: View {
     @Query private var jobs: [MailMergeJob]
     @State private var selection: SidebarDestination = .jobs
     @State private var pendingJobID: UUID?
-    @State private var visitedDestinations: Set<SidebarDestination> = [.jobs]
     @State private var windowCommands = WindowCommandRouter()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -32,7 +31,6 @@ struct MainTabView: View {
         } detail: {
             detailContent
         }
-        .onChange(of: selection, initial: true) { visitedDestinations.insert(selection) }
         .navigationSplitViewStyle(.balanced)
         .symbolEffectsRemoved(reduceMotion)
         #if DEBUG
@@ -87,25 +85,20 @@ struct MainTabView: View {
         }
     }
 
-    /// Each tab owns its navigation stack. Keep visited stacks mounted so SwiftUI
-    /// never tries to apply a job's UUID path to the template or SDK board stack.
+    @ViewBuilder
     private var detailContent: some View {
-        ZStack {
-            ContentView(pendingJobID: $pendingJobID, newJobRequested: $windowCommands.isNewJobRequested, isActive: selection == .jobs)
-                .libraryTab(isActive: selection == .jobs)
-            if visitedDestinations.contains(.templates) {
-                TemplateLibraryView { jobID in
-                    pendingJobID = jobID
-                    withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
-                        selection = .jobs
-                    }
+        switch selection {
+        case .jobs:
+            ContentView(pendingJobID: $pendingJobID, newJobRequested: $windowCommands.isNewJobRequested)
+        case .templates:
+            TemplateLibraryView { jobID in
+                pendingJobID = jobID
+                withAnimation(Motion.resolved(Motion.standard, reduceMotion: reduceMotion)) {
+                    selection = .jobs
                 }
-                .libraryTab(isActive: selection == .templates)
             }
-            if visitedDestinations.contains(.featureRequests) {
-                featureRequests
-                    .libraryTab(isActive: selection == .featureRequests)
-            }
+        case .featureRequests:
+            featureRequests
         }
     }
 
@@ -122,7 +115,6 @@ struct MainTabView: View {
             #endif
         }
     }
-
 }
 
 // MARK: - Sidebar Brand Header
@@ -203,7 +195,7 @@ private struct TemplateLibraryView: View {
                     Button("New Job from Template", systemImage: "square.and.arrow.down") {
                         showingImporter = true
                     }
-                    .help("Import a DOCX template")
+                    .help("Create a new merge job from a DOCX template")
                 }
             }
         }
@@ -431,15 +423,5 @@ private struct DocumentThumbnail: View {
 private struct LiveFeatureRequestsBoard: View {
     var body: some View {
                 SignalBoardView(apiKey: "ks_live_oiOXxPHxxpQT2eV42Z-LAVU4oTCahb_AUiLTpQ7vcuU")
-    }
-}
-
-private extension View {
-    func libraryTab(isActive: Bool) -> some View {
-        opacity(isActive ? 1 : 0)
-            .zIndex(isActive ? 1 : 0)
-            .allowsHitTesting(isActive)
-            .disabled(!isActive)
-            .accessibilityHidden(!isActive)
     }
 }

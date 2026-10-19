@@ -8,10 +8,7 @@ struct ContentView: View {
     @Environment(PurchaseStore.self) private var purchases
     @Environment(MergeRunStore.self) private var mergeRuns
 
-    var isActive: Bool
-
-    init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false), isActive: Bool = true) {
-        self.isActive = isActive
+    init(pendingJobID: Binding<UUID?> = .constant(nil), newJobRequested: Binding<Bool> = .constant(false)) {
         _pendingJobID = pendingJobID
         _newJobRequested = newJobRequested
     }
@@ -22,6 +19,8 @@ struct ContentView: View {
     /// Set by File > New Job; the list starts creating a job and clears it.
     @Binding private var newJobRequested: Bool
     @SceneStorage("navigationPath") private var navigationPathData: Data = Data()
+    // NavigationSplitView can reuse its column authority across tabs. A heterogeneous
+    // path avoids comparing the job's UUID array with the SDK board's route types.
     @State private var navigationPath = NavigationPath()
     @State private var displayedJobID: UUID?
     @State private var searchText = ""
@@ -160,7 +159,7 @@ struct ContentView: View {
             newJobRequested = false
             createJob()
         }
-        .focusedSceneValue(\.jobCommands, isActive ? focusedJobCommands : nil)
+        .focusedSceneValue(\.jobCommands, focusedJobCommands)
         .onChange(of: jobCommandRouter.pendingCommand) { _, command in
             guard let command else { return }
             jobCommandRouter.pendingCommand = nil
