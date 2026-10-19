@@ -2,6 +2,9 @@
   "appId": "6759203950",
   "derived": {
     "appAssetLibraryAssets": {
+      "00c00019-2e14-846e-8139-ec78d2f2207e": {
+        "sourceFileChecksum": "c304baa083caf5e78ab3048016731f4c"
+      },
       "30800019-2e14-846e-8025-a57d8381a0a9": {
         "renditionChecksum": "aa919d13f7b1e0febef9db40d83db840"
       },
@@ -11,8 +14,23 @@
       "3f000019-2e14-846e-8001-31f723b357bc": {
         "renditionChecksum": "dad3164f405c2cfcb73f02dc090de0e9"
       },
+      "54400019-2e14-846e-8033-f6bc01203b1f": {
+        "sourceFileChecksum": "d8c2705d929b2bbea58a66a96dd75254"
+      },
       "5f400019-2e14-846e-8035-688481275939": {
         "renditionChecksum": "4ef67b7793daaf7e3bc8949f3529d455"
+      },
+      "aa800019-2e14-846e-8011-5b281c1bb3f6": {
+        "sourceFileChecksum": "f9d87fd9fd4eb81ede168ed4cc91a452"
+      },
+      "bd400019-2e14-846e-800f-fdb4a6353e86": {
+        "sourceFileChecksum": "3f817493cd2d86628ae4573c5a19aeab"
+      },
+      "c2c00019-2e14-846e-802d-53bce02c9790": {
+        "sourceFileChecksum": "edae996852c48daa45ee5f459ed41ccf"
+      },
+      "d9800019-2e14-846e-802c-c7f65ad27435": {
+        "sourceFileChecksum": "8f307c8d1b7b26fc85ba342ded8dfeeb"
       },
       "f2000019-2e14-846e-803d-2067df06d6e8": {
         "renditionChecksum": "3e0535044b4b181858f03252d8d34528"
@@ -1507,69 +1525,47 @@
       "id": "65afbaca-c73f-4b2f-ae0d-ee624e7311d8",
       "type": "appInfoLocalizations"
     },
-    "appStoreReviewDetail:MAC_OS:1.2.0": {
+    "appStoreReviewDetail:MAC_OS:1.2.1": {
       "fields": {
-        "contactEmail": "gerardgomez11@outlook.com",
+        "contactEmail": "transfinite@transfinite.us",
         "contactFirstName": "Gerard",
         "contactLastName": "Gomez",
-        "contactPhone": "+1 646 938 8594",
-        "demoAccountRequired": false
+        "contactPhone": "+1 914 316 8248",
+        "demoAccountRequired": false,
+        "notes": "Version 1.2.1 replaces the rejected 1.2.0 submission. The App Store description now includes a functional link to Apple's standard Terms of Use (EULA), addressing the automated subscription metadata rejection.\n\nNo app account or sign-in is required to use the document merge features. The free plan includes all merge features for up to three jobs; Pro purchases unlock unlimited jobs."
       },
       "id": "5161c5b6-e82a-4f7e-874a-2b8827dcbd6b",
       "type": "appStoreReviewDetails"
     },
-    "appStoreVersion:MAC_OS:1.2.0": {
+    "appStoreVersion:MAC_OS:1.2.1": {
       "fields": {
-        "copyright": "Gerard Gomez",
+        "copyright": "Transfinite",
         "releaseType": "AFTER_APPROVAL",
-        "versionString": "1.2.0"
+        "versionString": "1.2.1"
       },
       "id": "5a5b3332-2f38-49a2-a9f1-c9d6c5348929",
       "type": "appStoreVersions"
     },
-    "appStoreVersionLocalization:MAC_OS:1.2.0:en-US": {
+    "appStoreVersionLocalization:MAC_OS:1.2.1:en-US": {
       "fields": {
-        "description": "Mergeform lets you turn your existing documents and spreadsheets into thousands of personalized PDFs in just a few clicks.\n\nInstead of manually editing each document, you use the files you already know:\n\n• Start with your own DOCX\n  Use any Word .docx file as a template. Add simple merge fields like {{Name}} or {{Address}} right where you want personalized data to appear.\n\n• Connect an Excel spreadsheet\n  Choose your Excel workbook and select the sheet that holds your data. Each row becomes a personalized document, and each column can fill in a different part of your template.\n\n• Map fields with clarity\n  Match template placeholders to specific spreadsheet columns so you know exactly what will appear where. See at a glance which data is used for names, dates, amounts, and more.\n\n• Preview before you commit\n  Generate a sample PDF to confirm everything looks right before you run the full job. Check formatting, spelling, and layout so there are no surprises later.\n\n• Export exactly what you need\n  Create a separate PDF for every row in your spreadsheet, or export a single combined PDF that contains all generated documents in one file, ready to print or share.\n\nBecause it is built specifically for macOS, Mergeform feels right at home on your Mac:\n\n• Clean, focused interface that stays out of your way\n• Fast processing for large spreadsheets and long documents\n• Reliable PDF output that preserves your fonts and layout\n\nUse Mergeform for:\n\n• Letters: Personalized client letters, school notices, fundraising campaigns\n• Certificates: Event participation, course completion, awards, memberships\n• Invoices and billing: Customized invoices, statements, receipts\n• Reports and forms: Enrollment forms, HR letters, agreements, and more\n\nWith Mergeform, you can go from a single DOCX and a simple spreadsheet to hundreds or thousands of polished PDFs in minutes, without learning new tools or complex systems.",
+        "description": "Mergeform lets you turn your existing documents and spreadsheets into thousands of personalized PDFs in just a few clicks.\n\nInstead of manually editing each document, you use the files you already know:\n\n• Start with your own DOCX\n  Use any Word .docx file as a template. Add simple merge fields like {{Name}} or {{Address}} right where you want personalized data to appear.\n\n• Connect an Excel spreadsheet\n  Choose your Excel workbook and select the sheet that holds your data. Each row becomes a personalized document, and each column can fill in a different part of your template.\n\n• Map fields with clarity\n  Match template placeholders to specific spreadsheet columns so you know exactly what will appear where. See at a glance which data is used for names, dates, amounts, and more.\n\n• Preview before you commit\n  Generate a sample PDF to confirm everything looks right before you run the full job. Check formatting, spelling, and layout so there are no surprises later.\n\n• Export exactly what you need\n  Create a separate PDF for every row in your spreadsheet, or export a single combined PDF that contains all generated documents in one file, ready to print or share.\n\nBecause it is built specifically for macOS, Mergeform feels right at home on your Mac:\n\n• Clean, focused interface that stays out of your way\n• Fast processing for large spreadsheets and long documents\n• Reliable PDF output that preserves your fonts and layout\n\nUse Mergeform for:\n\n• Letters: Personalized client letters, school notices, fundraising campaigns\n• Certificates: Event participation, course completion, awards, memberships\n• Invoices and billing: Customized invoices, statements, receipts\n• Reports and forms: Enrollment forms, HR letters, agreements, and more\n\nWith Mergeform, you can go from a single DOCX and a simple spreadsheet to hundreds or thousands of polished PDFs in minutes, without learning new tools or complex systems.\n\nTerms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
         "keywords": "doxc,docx,excel,template,bulk,letters,documents,word,sheet,certificate,form,contracts,report,macos",
+        "marketingUrl": "https://apps.transfinite.us",
         "promotionalText": "Turn spreadsheet rows into polished PDFs in minutes. Import a DOCX template, map fields once, preview instantly, then auto-save to folders or send by email.",
-        "supportUrl": "https://transfinite.us",
-        "whatsNew": "Mergeform 1.2 brings a fresh new look, a faster way to find your finished PDFs, and dozens of fixes that make every merge more accurate.\n\nNew\n• A redesigned Mac app with a native sidebar, full Dark Mode support, and smooth animations that follow your Reduce Motion setting\n• After a merge, see which folder your PDFs were saved in and open it in Finder with the new files selected\n• Cancel a merge at any time, and keep its progress while you move between steps\n• Drag and drop templates, spreadsheets, and output folders onto each step\n• Format fields as dates, numbers, or currency, with a live example\n• PDFs use your template’s paper size, margins, and header logo as they appear in Word\n• Mergeform asks before deleting a job (you can turn this off in Settings)\n\nImproved\n• Much better compatibility with real-world Excel workbooks: dates, percentages, ZIP codes with leading zeros, formulas, rich text, and TRUE/FALSE now come through exactly as Excel shows them\n• Smarter field matching that won’t mix up similar names like “Date” and “State”\n• Jobs keep working when you move or rename their template, spreadsheet, or output folder\n• Records that would get the same file name are numbered instead of overwriting each other\n• The relative dates, auto-match, and default file name settings now take effect\n• Lifetime Pro purchases are recognized everywhere in the app\n\nFixed\n• Adding, renaming, and deleting categories in Manage Categories\n• Job menu commands acting on the wrong job, and Command-Delete deleting a job while you type\n• Changing a job’s template now updates its fields\n• Cancelling a subscription purchase no longer closes the upgrade screen\n• Many smaller fixes throughout the app"
+        "supportUrl": "https://apps.transfinite.us/support",
+        "whatsNew": "Mergeform 1.2.1 makes purchases, spreadsheet formatting, and finished documents more reliable.\n\nNew\n• Suggest features and vote on ideas from Feature Requests in the sidebar\n• Discover other independent Mac apps in the free plan; Pro remains ad-free\n\nImproved\n• Native StoreKit purchases and restoration, with immediate Pro access and clearer errors\n• Jobs started from the template library are named after their template and have their fields scanned automatically\n• Manual field mappings are restored when you switch between sheets\n\nFixed\n• ZIP+4, phone and Social Security formats retain their punctuation\n• More accurate conditional, accounting, fraction and scientific number formats\n• Date transformations preserve the original Excel date, including its century and day/month order\n• Number and currency transformations round consistently with Excel\n• Column pickers refresh as soon as spreadsheet headers load\n• Spreadsheet reloads handle renamed sheets, and failed previews can be retried\n• Email Output keeps each merge’s attachments separate, even for jobs with the same name\n• Existing PDFs are preserved; new files receive a numbered name\n• Deleting a running job safely stops its merge\n• The File menu can open a new window after the last window is closed"
       },
       "id": "d3cc95bb-1ebf-40e6-be99-27c971367dc5",
       "type": "appStoreVersionLocalizations"
     },
-    "appStoreVersionPlacementGroup:MAC_OS:1.2.0:en-US:APP_SCREENSHOT:MAC_PROFILE": {
+    "appStoreVersionPlacementGroup:MAC_OS:1.2.1:en-US:APP_PREVIEW:MAC_PROFILE": {
       "fields": {
-        "appScreenshot": [
+        "appPreview": [
           {
-            "checksum": "asset:30800019-2e14-846e-8025-a57d8381a0a9",
-            "fileName": "Mac OS-01.png",
-            "fileSize": 649005
-          },
-          {
-            "checksum": "asset:5f400019-2e14-846e-8035-688481275939",
-            "fileName": "Mac OS-02.png",
-            "fileSize": 654460
-          },
-          {
-            "checksum": "asset:3f000019-2e14-846e-8001-31f723b357bc",
-            "fileName": "Mac OS-03.png",
-            "fileSize": 712833
-          },
-          {
-            "checksum": "asset:f2000019-2e14-846e-803d-2067df06d6e8",
-            "fileName": "Mac OS-04.png",
-            "fileSize": 698523
-          },
-          {
-            "checksum": "asset:30800019-2e14-846e-802b-c88aaa0c6515",
-            "fileName": "MergeformMain.jpg",
-            "fileSize": 1358256
-          },
-          {
-            "checksum": "asset:f3000019-2e14-846e-802d-a1362b8f7b99",
-            "fileName": "Mergeformfields.jpg",
-            "fileSize": 2261563
+            "checksum": "c304baa083caf5e78ab3048016731f4c",
+            "fileName": "01-workflow.mp4",
+            "fileSize": 2147833,
+            "previewFrameTimeCode": "00:00:02:00"
           }
         ]
       },

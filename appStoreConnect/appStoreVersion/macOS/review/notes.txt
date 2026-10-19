@@ -1,0 +1,3 @@
+Version 1.2.1 replaces the rejected 1.2.0 submission. The App Store description now includes a functional link to Apple's standard Terms of Use (EULA), addressing the automated subscription metadata rejection.
+
+No app account or sign-in is required to use the document merge features. The free plan includes all merge features for up to three jobs; Pro purchases unlock unlimited jobs.
