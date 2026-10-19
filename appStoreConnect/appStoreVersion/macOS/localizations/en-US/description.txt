@@ -31,3 +31,5 @@ Use Mergeform for:
 • Reports and forms: Enrollment forms, HR letters, agreements, and more
 
 With Mergeform, you can go from a single DOCX and a simple spreadsheet to hundreds or thousands of polished PDFs in minutes, without learning new tools or complex systems.
+
+Terms of Use (EULA): https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
