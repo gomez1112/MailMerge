@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The App Store age rating declares advertising and the feature board’s user posts and comments.
 
 ### Fixed
+- Sign the Kickstart resource bundles with the app's distribution certificate during Mac archives, fixing Apple's ITMS-90284 upload validation failure.
 - Replace FlexStore with an observable native StoreKit purchase store; process verified paywall purchases immediately, retry lifetime product loads, finish transactions, and show purchase errors
 - Hide free-plan content until entitlements are checked and count only free jobs against the lifetime allowance
 - Retain punctuation in Excel ZIP+4, phone, and SSN formats; respect conditional sections and decorated General formats

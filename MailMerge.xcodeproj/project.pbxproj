@@ -125,6 +125,7 @@
 				CC87A4E12F34A5FE00EBE819 /* Sources */,
 				CC87A4E22F34A5FE00EBE819 /* Frameworks */,
 				CC87A4E32F34A5FE00EBE819 /* Resources */,
+				CFA102342FC1000000000001 /* Sign Package Resources */,
 			);
 			buildRules = (
 			);
@@ -203,6 +204,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CFA102342FC1000000000001 /* Sign Package Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/sign-package-resources.sh",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KickstartSDK_KickstartExchange.bundle/Contents/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KickstartSDK_KickstartSignal.bundle/Contents/Info.plist",
+			);
+			name = "Sign Package Resources";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KickstartSDK_KickstartExchange.bundle/Contents/_CodeSignature/CodeResources",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KickstartSDK_KickstartSignal.bundle/Contents/_CodeSignature/CodeResources",
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"$SRCROOT/Scripts/sign-package-resources.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		CC3D7B142F454DF0004D55B2 /* Sources */ = {
@@ -403,7 +426,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 88QL9VPLMY;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -442,6 +465,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.transfinite.MailMerge;
 				PRODUCT_NAME = Mergeform;
 				REGISTER_APP_GROUPS = YES;
+				RESOURCE_BUNDLE_SIGNING_IDENTITY = "Apple Distribution: TRANSFINITE LLC (88QL9VPLMY)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = macosx;
@@ -462,7 +486,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = 88QL9VPLMY;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -501,6 +525,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.transfinite.MailMerge;
 				PRODUCT_NAME = Mergeform;
 				REGISTER_APP_GROUPS = YES;
+				RESOURCE_BUNDLE_SIGNING_IDENTITY = "Apple Distribution: TRANSFINITE LLC (88QL9VPLMY)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = macosx;
